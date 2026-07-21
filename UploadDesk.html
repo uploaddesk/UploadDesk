@@ -2358,8 +2358,21 @@ async function autoRefreshYoutubeStatsByKey(){
       // fetched previously get clobbered by the public API's zeros. Carry
       // forward whatever likes we last knew for each video, matched by id.
       const prevLikesById = {};
-      (state.youtube.recentVideos||[]).forEach(v=>{ prevLikesById[v.id] = v.likes; });
-      videos.forEach(v=>{ if(prevLikesById[v.id] != null && prevLikesById[v.id] > 0) v.likes = prevLikesById[v.id]; });
+      const prevRetentionById = {};
+      (state.youtube.recentVideos||[]).forEach(v=>{
+        prevLikesById[v.id] = v.likes;
+        if(v.avgViewPercent != null) prevRetentionById[v.id] = v.avgViewPercent;
+      });
+      videos.forEach(v=>{
+        if(prevLikesById[v.id] != null && prevLikesById[v.id] > 0) v.likes = prevLikesById[v.id];
+        // Retention (avgViewPercent) only comes from the private Analytics
+        // API, never from the public key-based fetch above — so a fresh,
+        // token-less refresh always returns videos with no retention field
+        // at all. Without this, every automatic page-load refresh silently
+        // wiped out retention data that a previous Refresh click had
+        // already fetched and saved, even though nothing was actually wrong.
+        if(prevRetentionById[v.id] != null) v.avgViewPercent = prevRetentionById[v.id];
+      });
     }
     // Preserve the connected account's email across auto-refreshes so the
     // Refresh button's login_hint keeps working without ever needing this
