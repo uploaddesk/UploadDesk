@@ -10,12 +10,10 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" onerror="this.dataset.failed='1'"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script>
-  window.__EMAILJS_PUBLIC_KEY = "PASTE_YOUR_PUBLIC_KEY";
-  window.__EMAILJS_SERVICE_ID = "PASTE_YOUR_SERVICE_ID";
-  window.__EMAILJS_TEMPLATE_ID = "PASTE_YOUR_TEMPLATE_ID";
-  window.addEventListener("DOMContentLoaded", function(){
-    if(window.emailjs) emailjs.init({ publicKey: window.__EMAILJS_PUBLIC_KEY });
-  });
+  window.__EMAILJS_PUBLIC_KEY = "xLfZg5lh0vRA_AGVD";
+  window.__EMAILJS_SERVICE_ID = "service_v9xjo4e";
+  window.__EMAILJS_TEMPLATE_ID = "template_vxqna01";
+  if(window.emailjs) emailjs.init({ publicKey: window.__EMAILJS_PUBLIC_KEY });
 </script>
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js";
@@ -3231,7 +3229,8 @@ document.getElementById("ytSendCodeBtn").addEventListener("click", async ()=>{
     showToastMsg("Verification code sent — check your inbox", "fa-solid fa-envelope");
   }catch(err){
     console.error("EmailJS send failed:", err);
-    errEl.textContent = "Couldn't send the code. Check your internet connection and try again.";
+    const detail = (err && err.text) ? err.text : (err && err.message) ? err.message : "Unknown error";
+    errEl.textContent = "Couldn't send the code: " + detail;
   } finally {
     btn.disabled = false;
     btn.innerHTML = "Continue with email";
