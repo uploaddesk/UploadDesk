@@ -2634,7 +2634,7 @@ async function reconnectYoutubeSilently(){
   // re-consent only if still needed.
 }
 
-async function connectYoutube(promptMode){
+async function connectYoutube(promptMode, loginHint){
   if(!googleClientConfigured()){
     showToastMsg("YouTube connection isn't set up yet — add a Google OAuth Client ID to enable this.", "fa-solid fa-triangle-exclamation");
     return;
@@ -2642,7 +2642,7 @@ async function connectYoutube(promptMode){
   const btn = document.getElementById("connectYoutubeBtn") || document.getElementById("switchYoutubeBtn");
   if(btn) btn.disabled = true;
   try{
-    const token = await requestYoutubeToken(promptMode || "consent");
+    const token = await requestYoutubeToken(promptMode || "consent", loginHint);
     ytAccessToken = token;
     ytTokenAcquiredAt = Date.now();
     const channelInfo = await fetchYoutubeChannel(token);
@@ -2652,6 +2652,7 @@ async function connectYoutube(promptMode){
     state.youtube = channelInfo;
     ytFilterStart = null;
     ytFilterEnd = null;
+    try{ if(channelInfo.email) localStorage.setItem("uploadDeskYtLastEmail_v1", channelInfo.email); }catch(e){}
     persist(true);
     renderYoutubeProfile();
     refreshAnalytics();
@@ -3179,7 +3180,10 @@ function closeYtVideoModal(){ ytVideoModalOverlay.classList.remove("open"); ytVi
 document.getElementById("ytVideoModalClose").addEventListener("click", closeYtVideoModal);
 document.getElementById("ytVideoModalCloseBtn").addEventListener("click", closeYtVideoModal);
 ytVideoModalOverlay.addEventListener("click", (e)=>{ if(e.target===ytVideoModalOverlay) closeYtVideoModal(); });
-document.getElementById("connectYoutubeBtn").addEventListener("click", ()=> connectYoutube("consent"));
+function getRememberedYtEmail(){
+  try{ return localStorage.getItem("uploadDeskYtLastEmail_v1") || undefined; }catch(e){ return undefined; }
+}
+document.getElementById("connectYoutubeBtn").addEventListener("click", ()=> connectYoutube("consent", getRememberedYtEmail()));
 document.getElementById("refreshYoutubeBtn").addEventListener("click", refreshYoutubeProfile);
 
 /* ============================================================
@@ -3260,7 +3264,7 @@ document.getElementById("ytVerifyCodeBtn").addEventListener("click", async ()=>{
       return;
     }
     showToastMsg("Email verified", "fa-solid fa-circle-check");
-    connectYoutube("consent");
+    connectYoutube("consent", ytPendingEmail);
   }catch(err){
     errEl.textContent = "Couldn't verify — check your internet connection.";
   } finally {
@@ -3273,6 +3277,9 @@ document.getElementById("ytResendCodeBtn").addEventListener("click", ()=>{
   document.getElementById("ytSendCodeBtn").click();
 });
 document.getElementById("switchYoutubeBtn").addEventListener("click", ()=> connectYoutube("select_account consent"));
+// Note: Switch channel intentionally does NOT pass a hint — its whole
+// purpose is letting the person pick a different account, so it must
+// always show the chooser rather than skip straight to the last one.
 document.getElementById("disconnectYoutubeBtn").addEventListener("click", disconnectYoutube);
 document.getElementById("ytApplyFilterBtn").addEventListener("click", ()=>{
   ytFilterStart = document.getElementById("ytFilterStartInput").value || null;
