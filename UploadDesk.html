@@ -205,6 +205,11 @@ img, svg, canvas{max-width:100%;}
 .stat-card .value{font-family:var(--font-mono); font-size:clamp(20px,4vw,28px); font-weight:700; overflow-wrap:break-word; word-break:break-word; padding-right:26px;}
 .stat-card .sub{font-size:12px; color:var(--text-faint);}
 .stat-card .glyph{position:absolute; right:14px; top:14px; font-size:20px; opacity:.5;}
+.src-tag{display:inline-flex; align-items:center; gap:4px; font-size:9px; font-weight:700; letter-spacing:.4px; text-transform:uppercase; padding:2px 7px; border-radius:20px; margin-bottom:2px; align-self:flex-start; max-width:calc(100% - 34px); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.src-tag i{flex-shrink:0;}
+.src-tag.src-youtube{background:var(--teal-dim); color:var(--teal);}
+.src-tag.src-manual{background:var(--surface-3); color:var(--text-faint);}
+@media (max-width:400px){ .src-tag{font-size:8px; padding:2px 6px; max-width:calc(100% - 26px);} }
 .stat-accent{color:var(--accent);}
 .stat-teal{color:var(--teal);}
 .stat-gold{color:var(--gold);}
@@ -3593,6 +3598,20 @@ function chartTextColor(){ return getComputedStyle(document.documentElement).get
 function chartGridColor(){ return getComputedStyle(document.documentElement).getPropertyValue("--border").trim() || "#262E42"; }
 
 function computeStreak(){
+  if(isYoutubeConnected()){
+    const videos = (state.youtube && state.youtube.recentVideos) || [];
+    const uploadDates = [...new Set(videos.map(v=> toISO(new Date(v.publishedAt))))];
+    if(uploadDates.length===0) return 0;
+    const set = new Set(uploadDates);
+    let streak = 0;
+    let cursor = new Date();
+    if(!set.has(toISO(cursor))) cursor.setDate(cursor.getDate()-1);
+    while(set.has(toISO(cursor))){
+      streak++;
+      cursor.setDate(cursor.getDate()-1);
+    }
+    return streak;
+  }
   const flat = allDaysFlat().filter(d=> d.entry.status === "Uploaded");
   if(flat.length===0) return 0;
   const set = new Set(flat.map(d=>d.iso));
@@ -3639,6 +3658,7 @@ function renderDashboardBanner(){
 
 function renderDashboard(){
   renderDashboardBanner();
+  document.getElementById("streakSidebar").textContent = computeStreak() + "-day streak";
   document.getElementById("dashProgressTitle").innerHTML = 'Monthly progress <span class="tag" id="monthTag"></span>';
   document.getElementById("dashProgressHint").textContent = "How many of this month's planned Shorts have actually been uploaded so far.";
   document.getElementById("dashBestWorstHint").textContent = "Your highest- and lowest-viewed Short this month, ranked by 24-hour views.";
@@ -3683,23 +3703,22 @@ function renderDashboard(){
   });
 
   const streak = computeStreak();
-  document.getElementById("streakSidebar").textContent = streak + "-day streak";
 
   const cards = [
-    {label:"Shorts planned", value:planned, sub:MONTH_NAMES[new Date().getMonth()], icon:"fa-solid fa-list-check", cls:"stat-accent"},
-    {label:"Shorts uploaded", value:uploaded, sub:`${remaining} remaining`, icon:"fa-solid fa-circle-check", cls:"stat-teal"},
-    {label:"Total views", value:totalViews.toLocaleString(), sub:`${withViews.length} tracked uploads`, icon:"fa-solid fa-eye", cls:"stat-gold"},
-    {label:"Watch hours", value:totalWatchHoursManual.toLocaleString(), sub:`${withWatchtime.length} logged manually`, icon:"fa-solid fa-clock", cls:"stat-teal"},
-    {label:"Upload streak", value:streak+"d", sub:"consecutive days", icon:"fa-solid fa-fire", cls:"stat-accent"},
+    {label:"Shorts planned", value:planned, sub:MONTH_NAMES[new Date().getMonth()], icon:"fa-solid fa-list-check", cls:"stat-accent", source:"manual"},
+    {label:"Shorts uploaded", value:uploaded, sub:`${remaining} remaining`, icon:"fa-solid fa-circle-check", cls:"stat-teal", source:"manual"},
+    {label:"Total views", value:totalViews.toLocaleString(), sub:`${withViews.length} tracked uploads`, icon:"fa-solid fa-eye", cls:"stat-gold", source:"manual"},
+    {label:"Watch hours", value:totalWatchHoursManual.toLocaleString(), sub:`${withWatchtime.length} logged manually`, icon:"fa-solid fa-clock", cls:"stat-teal", source:"manual"},
+    {label:"Upload streak", value:streak+"d", sub:"consecutive days", icon:"fa-solid fa-fire", cls:"stat-accent", source:"manual"},
   ];
   document.getElementById("statCards").innerHTML = cards.map(c=>`
     <div class="card stat-card lift">
       <i class="glyph ${c.icon} ${c.cls}"></i>
+      <div class="src-tag ${c.source==='youtube' ? 'src-youtube' : 'src-manual'}"><i class="${c.source==='youtube' ? 'fa-brands fa-youtube' : 'fa-solid fa-pen'}"></i>${c.source==='youtube' ? 'Live' : 'Manual'}</div>
       <div class="label">${c.label}</div>
       <div class="value ${c.cls}">${c.value}</div>
       <div class="sub">${c.sub}</div>
     </div>`).join("");
-
   document.getElementById("monthTag").textContent = MONTH_NAMES[new Date().getMonth()] + " " + new Date().getFullYear();
   const pct = planned ? Math.round((uploaded/planned)*100) : 0;
   document.getElementById("progressFill").style.width = pct+"%";
@@ -3739,15 +3758,16 @@ function renderDashboardConnectedMode(){
   document.getElementById("dashStatusHint").textContent = "Combined totals across the uploads shown above. Click a legend item to isolate it, or click All to reset.";
 
   const cards = [
-    {label:"Subscribers", value:(yt.subs||0).toLocaleString(), sub:"channel total", icon:"fa-solid fa-users", cls:"stat-accent"},
-    {label:"Total channel views", value:(yt.views||0).toLocaleString(), sub:"all-time, all videos", icon:"fa-solid fa-eye", cls:"stat-gold"},
-    {label:"Total watch hours", value: yt.watchHours!=null ? Number(yt.watchHours).toLocaleString() : "—", sub: yt.watchHours!=null ? "channel total" : (yt.watchHoursError || "not available — try Refresh"), icon:"fa-solid fa-clock", cls:"stat-teal"},
-    {label:"Recent uploads shown", value:videos.length, sub:ytFilterStart||ytFilterEnd ? "filtered range" : "public videos found", icon:"fa-solid fa-video", cls:"stat-teal"},
-    {label:"Avg views / upload", value: videos.length ? Math.round(videos.reduce((s,v)=>s+v.views,0)/videos.length).toLocaleString() : "0", sub:"in view above", icon:"fa-solid fa-chart-simple", cls:"stat-accent"},
+    {label:"Subscribers", value:(yt.subs||0).toLocaleString(), sub:"channel total", icon:"fa-solid fa-users", cls:"stat-accent", source:"youtube"},
+    {label:"Total channel views", value:(yt.views||0).toLocaleString(), sub:"all-time, all videos", icon:"fa-solid fa-eye", cls:"stat-gold", source:"youtube"},
+    {label:"Total watch hours", value: yt.watchHours!=null ? Number(yt.watchHours).toLocaleString() : "—", sub: yt.watchHours!=null ? "channel total" : (yt.watchHoursError || "not available — try Refresh"), icon:"fa-solid fa-clock", cls:"stat-teal", source:"youtube"},
+    {label:"Recent uploads shown", value:videos.length, sub:ytFilterStart||ytFilterEnd ? "filtered range" : "public videos found", icon:"fa-solid fa-video", cls:"stat-teal", source:"youtube"},
+    {label:"Avg views / upload", value: videos.length ? Math.round(videos.reduce((s,v)=>s+v.views,0)/videos.length).toLocaleString() : "0", sub:"in view above", icon:"fa-solid fa-chart-simple", cls:"stat-accent", source:"youtube"},
   ];
   document.getElementById("statCards").innerHTML = cards.map(c=>`
     <div class="card stat-card lift">
       <i class="glyph ${c.icon} ${c.cls}"></i>
+      <div class="src-tag ${c.source==='youtube' ? 'src-youtube' : 'src-manual'}"><i class="${c.source==='youtube' ? 'fa-brands fa-youtube' : 'fa-solid fa-pen'}"></i>${c.source==='youtube' ? 'Live' : 'Manual'}</div>
       <div class="label">${c.label}</div>
       <div class="value ${c.cls}">${c.value}</div>
       <div class="sub">${c.sub}</div>
@@ -4020,6 +4040,12 @@ function filteredMonthDays(mk){
 function renderPlanner(){
   populateFilterSelects();
   renderDayLegend();
+  const plannerHintEl = document.querySelector("#view-planner .section-hint");
+  if(plannerHintEl){
+    plannerHintEl.textContent = isYoutubeConnected()
+      ? "Your YouTube channel is connected, so this calendar is now a personal planning notepad — it no longer drives your Dashboard, Statistics, or Compare numbers, which come straight from YouTube. Click any day to jot down a title, notes, or a checklist for yourself."
+      : "Click any day to add a Short's title, status, checklist, and performance numbers. Colors below show each day's state.";
+  }
   const mk = monthKeyOf(viewCursor);
   document.getElementById("monthLabel").textContent = `${MONTH_NAMES[viewCursor.getMonth()]} ${viewCursor.getFullYear()}`;
 
@@ -4377,6 +4403,12 @@ function populateIdeaPillarFilter(){
 
 function renderIdeas(){
   populateIdeaPillarFilter();
+  const ideasHintEl = document.querySelector("#view-ideas .section-hint");
+  if(ideasHintEl){
+    ideasHintEl.textContent = isYoutubeConnected()
+      ? "Capture Short ideas before they're ready for a specific date. Tag them and group them into content pillars. Your YouTube channel is connected, so the Planner calendar no longer drives your real stats — \"Send to Planner\" just logs the idea as a note on that date, it won't create a real upload."
+      : "Capture Short ideas before they're ready for a specific date. Tag them, group them into content pillars, and send them straight to the Planner when you're ready to schedule.";
+  }
   const search = document.getElementById("ideaSearchInput").value.trim().toLowerCase();
   const pillarFilter = document.getElementById("ideaPillarFilter").value;
   const statusFilter = document.getElementById("ideaStatusFilter").value;
@@ -4405,7 +4437,7 @@ function renderIdeas(){
       ${idea.used ? `<div class="idea-used-chip"><i class="fa-solid fa-circle-check"></i> Already used</div>` : ""}
       <div class="idea-foot">
         <button class="btn btn-sm idea-edit-btn" title="Edit this idea"><i class="fa-solid fa-pen"></i> Edit</button>
-        <button class="btn btn-sm btn-primary idea-send-btn" title="Create a planned Short from this idea"><i class="fa-solid fa-paper-plane"></i> Send</button>
+        <button class="btn btn-sm btn-primary idea-send-btn" title="${isYoutubeConnected() ? "Log this idea on a Planner date as a note — it won't affect your real YouTube stats" : "Create a planned Short from this idea"}"><i class="fa-solid fa-paper-plane"></i> ${isYoutubeConnected() ? "Log to Planner" : "Send"}</button>
       </div>
     </div>`).join("");
   grid.querySelectorAll(".idea-edit-btn").forEach(b=> b.addEventListener("click", (e)=> openIdeaModal(e.target.closest(".idea-card").dataset.id)));
@@ -4495,6 +4527,12 @@ let sendIdeaId = null;
 function openSendIdeaModal(id){
   sendIdeaId = id;
   document.getElementById("sendIdeaError").textContent = "";
+  const sendIdeaHintEl = document.querySelector("#sendIdeaOverlay .section-hint");
+  if(sendIdeaHintEl){
+    sendIdeaHintEl.textContent = isYoutubeConnected()
+      ? "Pick a date to log this idea as a note on the Planner calendar. Your YouTube channel is connected, so this is just a personal note — it won't create a real upload or affect your Dashboard/Statistics numbers, which come from YouTube directly."
+      : "Pick a date to create a planned Short from this idea. Its title, notes, category and tags carry over automatically.";
+  }
   const dateInput = document.getElementById("sendIdeaDate");
   let d = new Date();
   for(let i=0;i<60;i++){
@@ -4533,7 +4571,12 @@ document.getElementById("sendIdeaConfirm").addEventListener("click", ()=>{
   sendIdeaOverlay.classList.remove("open");
   renderIdeas();
   refreshAnalytics();
-  showToastMsg("Sent to Planner — open the Planner to fill in more details", "fa-solid fa-paper-plane");
+  showToastMsg(
+    isYoutubeConnected()
+      ? "Logged as a note on the Planner — this is just for your own tracking and doesn't affect your real YouTube stats"
+      : "Sent to Planner — open the Planner to fill in more details",
+    "fa-solid fa-paper-plane"
+  );
 });
 
 /* ============================================================
@@ -4640,9 +4683,17 @@ function renderGoals(){
   const now = new Date();
   const mk = monthKeyOf(now);
   document.getElementById("goalsMonthTag").textContent = MONTH_NAMES[now.getMonth()] + " " + now.getFullYear();
-  const monthDays = daysInMonth(mk);
-  const uploaded = monthDays.filter(d=>d.entry.status==="Uploaded").length;
-  const totalViews = monthDays.reduce((s,d)=> s+Number(d.entry.views24||0), 0);
+  let uploaded, totalViews;
+  if(isYoutubeConnected()){
+    const [monStart, monEnd] = monthRangeISO(now);
+    const videosThisMonth = youtubeVideosInRange(monStart, monEnd);
+    uploaded = videosThisMonth.length;
+    totalViews = videosThisMonth.reduce((s,v)=> s+Number(v.views||0), 0);
+  } else {
+    const monthDays = daysInMonth(mk);
+    uploaded = monthDays.filter(d=>d.entry.status==="Uploaded").length;
+    totalViews = monthDays.reduce((s,d)=> s+Number(d.entry.views24||0), 0);
+  }
   const goal = state.goals[mk] || {};
   const uploadTarget = document.getElementById("goalUploadTarget");
   const viewsTarget = document.getElementById("goalViewsTarget");
@@ -4674,13 +4725,24 @@ function renderStreakHeatmap(){
   const wrap = document.getElementById("streakHeatmap");
   const cells = [];
   const today = new Date();
+  const connected = isYoutubeConnected();
+  const uploadDateSet = connected
+    ? new Set(((state.youtube && state.youtube.recentVideos) || []).map(v=> toISO(new Date(v.publishedAt))))
+    : null;
   for(let i=34;i>=0;i--){
     const d = new Date(today); d.setDate(d.getDate()-i);
     const iso = toISO(d);
-    const entry = getDay(iso);
-    const uploaded = entry && entry.status==="Uploaded";
+    let uploaded, hasEntry;
+    if(connected){
+      uploaded = uploadDateSet.has(iso);
+      hasEntry = uploaded;
+    } else {
+      const entry = getDay(iso);
+      uploaded = entry && entry.status==="Uploaded";
+      hasEntry = !!entry;
+    }
     const color = uploaded ? "var(--teal)" : "var(--surface-3)";
-    const opacity = uploaded ? "1" : (entry ? ".6" : ".3");
+    const opacity = uploaded ? "1" : (hasEntry ? ".6" : ".3");
     cells.push(`<div class="heatmap-cell" style="background:${color}; opacity:${opacity};" title="${iso}${uploaded?' — Uploaded':''}"></div>`);
   }
   wrap.innerHTML = cells.join("");
@@ -4815,16 +4877,16 @@ function computeAchievements(){
     {id:"viral_short", name:"Viral Moment", desc:"Get 10,000+ views (24h) on a single Short.", icon:"fa-solid fa-bolt", unlocked: highViewShorts>=1, progress: pct(highViewShorts,1), label:`${Math.min(highViewShorts,1)}/1`},
     {id:"likes_1k", name:"Crowd Favorite", desc:"Reach 1,000 total likes across your Shorts.", icon:"fa-solid fa-thumbs-up", unlocked: totalLikes>=1000, progress: pct(totalLikes,1000), label:`${Math.min(totalLikes,1000).toLocaleString()}/1,000`},
     {id:"comments_500", name:"Conversation Starter", desc:"Reach 500 total comments across your Shorts.", icon:"fa-solid fa-comments", unlocked: totalComments>=500, progress: pct(totalComments,500), label:`${Math.min(totalComments,500).toLocaleString()}/500`},
-    {id:"shares_500", name:"Shareable", desc:"Reach 500 total shares across your Shorts.", icon:"fa-solid fa-share-nodes", unlocked: totalShares>=500, progress: pct(totalShares,500), label:`${Math.min(totalShares,500).toLocaleString()}/500`},
+    {id:"shares_500", name:"Shareable", desc:"Reach 500 total shares across your Shorts.", icon:"fa-solid fa-share-nodes", unlocked: totalShares>=500, progress: pct(totalShares,500), label:`${Math.min(totalShares,500).toLocaleString()}/500`, manualOnly:true},
     {id:"subs_100", name:"Growing Audience", desc:"Gain 100 total subscribers from your Shorts.", icon:"fa-solid fa-users", unlocked: totalSubs>=100, progress: pct(totalSubs,100), label:`${Math.min(totalSubs,100).toLocaleString()}/100`},
     {id:"subs_1k", name:"Rising Creator", desc:"Gain 1,000 total subscribers from your Shorts.", icon:"fa-solid fa-user-group", unlocked: totalSubs>=1000, progress: pct(totalSubs,1000), label:`${Math.min(totalSubs,1000).toLocaleString()}/1,000`},
-    {id:"watchtime_100", name:"Binge Worthy", desc:"Reach 100 total hours of watch time.", icon:"fa-solid fa-hourglass-half", unlocked: totalWatchtime>=100, progress: pct(totalWatchtime,100), label:`${Math.min(totalWatchtime,100).toLocaleString()}/100h`},
-    {id:"high_ctr", name:"Thumbnail Master", desc:"Hit 10%+ CTR on 5 different Shorts.", icon:"fa-solid fa-bullseye", unlocked: highCtrCount>=5, progress: pct(highCtrCount,5), label:`${Math.min(highCtrCount,5)}/5`},
-    {id:"category_explorer", name:"Category Explorer", desc:"Use 5 different content categories.", icon:"fa-solid fa-compass", unlocked: distinctCategories>=5, progress: pct(distinctCategories,5), label:`${Math.min(distinctCategories,5)}/5`},
-    {id:"category_master", name:"Category Master", desc:"Use all 9 content categories.", icon:"fa-solid fa-shapes", unlocked: distinctCategories>=9, progress: pct(distinctCategories,9), label:`${Math.min(distinctCategories,9)}/9`},
+    {id:"watchtime_100", name:"Binge Worthy", desc:"Reach 100 total hours of watch time.", icon:"fa-solid fa-hourglass-half", unlocked: totalWatchtime>=100, progress: pct(totalWatchtime,100), label:`${Math.min(totalWatchtime,100).toLocaleString()}/100h`, manualOnly:true},
+    {id:"high_ctr", name:"Thumbnail Master", desc:"Hit 10%+ CTR on 5 different Shorts.", icon:"fa-solid fa-bullseye", unlocked: highCtrCount>=5, progress: pct(highCtrCount,5), label:`${Math.min(highCtrCount,5)}/5`, manualOnly:true},
+    {id:"category_explorer", name:"Category Explorer", desc:"Use 5 different content categories.", icon:"fa-solid fa-compass", unlocked: distinctCategories>=5, progress: pct(distinctCategories,5), label:`${Math.min(distinctCategories,5)}/5`, manualOnly:true},
+    {id:"category_master", name:"Category Master", desc:"Use all 9 content categories.", icon:"fa-solid fa-shapes", unlocked: distinctCategories>=9, progress: pct(distinctCategories,9), label:`${Math.min(distinctCategories,9)}/9`, manualOnly:true},
     {id:"consistency_king", name:"Consistency King", desc:"Upload something every tracked day in a month (20+ days).", icon:"fa-solid fa-medal", unlocked: consistencyKing, progress: consistencyKing?1:0, label: consistencyKing?"Done":"Not yet"},
     {id:"weekend_warrior", name:"Weekend Warrior", desc:"Upload 10 Shorts on a Saturday or Sunday.", icon:"fa-solid fa-mug-hot", unlocked: weekendUploads>=10, progress: pct(weekendUploads,10), label:`${Math.min(weekendUploads,10)}/10`},
-    {id:"perfectionist", name:"Perfectionist", desc:"Complete the full checklist (thumbnail, script, edit, tags) on 10 uploads.", icon:"fa-solid fa-clipboard-check", unlocked: perfectChecklistCount>=10, progress: pct(perfectChecklistCount,10), label:`${Math.min(perfectChecklistCount,10)}/10`},
+    {id:"perfectionist", name:"Perfectionist", desc:"Complete the full checklist (thumbnail, script, edit, tags) on 10 uploads.", icon:"fa-solid fa-clipboard-check", unlocked: perfectChecklistCount>=10, progress: pct(perfectChecklistCount,10), label:`${Math.min(perfectChecklistCount,10)}/10`, manualOnly:true},
     {id:"idea_machine", name:"Idea Machine", desc:"Add 10 ideas to your Ideas backlog.", icon:"fa-solid fa-lightbulb", unlocked: state.ideas.length>=10, progress: pct(state.ideas.length,10), label:`${Math.min(state.ideas.length,10)}/10`},
     {id:"idea_factory", name:"Idea Factory", desc:"Add 50 ideas to your Ideas backlog.", icon:"fa-solid fa-brain", unlocked: state.ideas.length>=50, progress: pct(state.ideas.length,50), label:`${Math.min(state.ideas.length,50)}/50`},
     {id:"goal_getter", name:"Goal Getter", desc:"Hit a monthly upload target you set in Goals.", icon:"fa-solid fa-bullseye", unlocked: goalGetter, progress: goalGetter?1:0, label: goalGetter?"Done":"Not yet"},
@@ -4840,13 +4902,20 @@ function computeAchievements(){
 }
 
 function renderBadges(){
-  const achievements = computeAchievements();
+  const connected = isYoutubeConnected();
+  const allAchievements = computeAchievements();
+  // Achievements needing data the public YouTube API never exposes (shares,
+  // watch time, CTR, categories) are unwinnable once connected. Hide them
+  // from the grid in that case — but never hide one already unlocked, so
+  // nothing earned in manual mode disappears just from connecting a channel.
+  const achievements = allAchievements.filter(a=> !connected || !a.manualOnly || a.unlocked);
+  const hiddenCount = allAchievements.length - achievements.length;
   const unlockedCount = achievements.filter(a=>a.unlocked).length;
   document.getElementById("achievementsTag").textContent = `${unlockedCount} / ${achievements.length} unlocked`;
   const achievementsHint = document.querySelector('#view-goals .goal-card:last-of-type .section-hint');
   if(achievementsHint){
     achievementsHint.textContent = isYoutubeConnected()
-      ? "Unlocked automatically from your connected YouTube channel's real stats — nothing to configure."
+      ? `Unlocked automatically from your connected YouTube channel's real stats — nothing to configure.${hiddenCount ? ` ${hiddenCount} achievement${hiddenCount===1?'':'s'} that need${hiddenCount===1?'s':''} manual-tracking data (shares, watch time, CTR, categories) ${hiddenCount===1?'is':'are'} hidden while connected.` : ""}`
       : "Unlocked automatically as you plan, upload, and grow in the Planner calendar — nothing to configure.";
   }
   document.getElementById("badgeGrid").innerHTML = achievements.map(a=>`
@@ -4859,7 +4928,7 @@ function renderBadges(){
 }
 
 function checkAchievementsForNewUnlocks(){
-  const achievements = computeAchievements();
+  const achievements = computeAchievements().filter(a=> !isYoutubeConnected() || !a.manualOnly || a.unlocked);
   let changed = false;
   achievements.forEach(a=>{
     if(a.unlocked && !state.achievementsUnlocked.includes(a.id)){
@@ -4883,45 +4952,60 @@ function computeNotifications(){
   const list = [];
   const today = new Date();
   const todayIso = todayISO();
+  const connected = isYoutubeConnected();
 
-const todayEntry = getDay(todayIso);
-  const todayState = computeDayState(todayIso, todayEntry);
-  if(todayState === "today-empty" || (todayState==="today" && !(todayEntry && todayEntry.title))){
-    list.push({ id:`today-pending-${todayIso}`, icon:"fa-solid fa-star", color:"var(--gold)", bg:"var(--gold-dim)",
-      title:"Today's Short isn't planned yet", message:"Add a title and details in the Planner before the day locks." });
-  }
-  if(todayEntry && todayEntry.title && todayEntry.status !== "Uploaded"){
-    const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23,59,59,999);
-    const hoursRemaining = (endOfDay - new Date()) / 3600000;
-    const nextThreshold = [5,4,3,2,1].find(h=> hoursRemaining <= h && hoursRemaining > 0);
-    if(nextThreshold){
-      list.push({ id:`reminder-display-${todayIso}`, icon:"fa-solid fa-hourglass-half", color:"var(--accent)", bg:"var(--accent-dim)",
-        title:`${nextThreshold} hour${nextThreshold===1?'':'s'} left to upload`, message:`"${todayEntry.title}" is still marked ${todayEntry.status}. Mark it Uploaded to stop these reminders.` });
+  // These four checks are all about the manual Planner calendar, which is
+  // purely cosmetic once a real YouTube channel is connected (see the
+  // Ideas/Planner hints elsewhere in the app) — so they'd otherwise nag
+  // about a "Short" that was never going to be uploaded through this app.
+  if(!connected){
+    const todayEntry = getDay(todayIso);
+    const todayState = computeDayState(todayIso, todayEntry);
+    if(todayState === "today-empty" || (todayState==="today" && !(todayEntry && todayEntry.title))){
+      list.push({ id:`today-pending-${todayIso}`, icon:"fa-solid fa-star", color:"var(--gold)", bg:"var(--gold-dim)",
+        title:"Today's Short isn't planned yet", message:"Add a title and details in the Planner before the day locks." });
     }
-  }
+    if(todayEntry && todayEntry.title && todayEntry.status !== "Uploaded"){
+      const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23,59,59,999);
+      const hoursRemaining = (endOfDay - new Date()) / 3600000;
+      const nextThreshold = [5,4,3,2,1].find(h=> hoursRemaining <= h && hoursRemaining > 0);
+      if(nextThreshold){
+        list.push({ id:`reminder-display-${todayIso}`, icon:"fa-solid fa-hourglass-half", color:"var(--accent)", bg:"var(--accent-dim)",
+          title:`${nextThreshold} hour${nextThreshold===1?'':'s'} left to upload`, message:`"${todayEntry.title}" is still marked ${todayEntry.status}. Mark it Uploaded to stop these reminders.` });
+      }
+    }
 
-  const y = new Date(today); y.setDate(y.getDate()-1);
-  const yIso = toISO(y);
-  const yEntry = getDay(yIso);
-  if(yEntry && computeDayState(yIso, yEntry) === "missed"){
-    list.push({ id:`missed-${yIso}`, icon:"fa-solid fa-triangle-exclamation", color:"var(--accent)", bg:"var(--accent-dim)",
-      title:"Yesterday's Short wasn't marked Uploaded", message:`"${yEntry.title||"Untitled"}" is still marked ${yEntry.status}.` });
-  }
+    const y = new Date(today); y.setDate(y.getDate()-1);
+    const yIso = toISO(y);
+    const yEntry = getDay(yIso);
+    if(yEntry && computeDayState(yIso, yEntry) === "missed"){
+      list.push({ id:`missed-${yIso}`, icon:"fa-solid fa-triangle-exclamation", color:"var(--accent)", bg:"var(--accent-dim)",
+        title:"Yesterday's Short wasn't marked Uploaded", message:`"${yEntry.title||"Untitled"}" is still marked ${yEntry.status}.` });
+    }
 
-  for(let i=1;i<=2;i++){
-    const d = new Date(today); d.setDate(d.getDate()+i);
-    const iso = toISO(d);
-    const entry = getDay(iso);
-    if(entry && entry.status==="Scheduled"){
-      list.push({ id:`scheduled-${iso}`, icon:"fa-solid fa-clock", color:"var(--violet)", bg:"#3A1F38",
-        title:"Upcoming scheduled Short", message:`"${entry.title||"Untitled"}" is scheduled for ${iso}.` });
+    for(let i=1;i<=2;i++){
+      const d = new Date(today); d.setDate(d.getDate()+i);
+      const iso = toISO(d);
+      const entry = getDay(iso);
+      if(entry && entry.status==="Scheduled"){
+        list.push({ id:`scheduled-${iso}`, icon:"fa-solid fa-clock", color:"var(--violet)", bg:"#3A1F38",
+          title:"Upcoming scheduled Short", message:`"${entry.title||"Untitled"}" is scheduled for ${iso}.` });
+      }
     }
   }
 
   const mk = monthKeyOf(today);
   const goal = state.goals[mk];
   if(goal && goal.uploadTarget>0 && today.getDate()>=20){
-    const uploaded = daysInMonth(mk).filter(d=>d.entry.status==="Uploaded").length;
+    // Same source Goals itself uses (see renderGoals), so this notification
+    // never disagrees with the progress bar on the Goals page.
+    let uploaded;
+    if(connected){
+      const [monStart, monEnd] = monthRangeISO(today);
+      uploaded = youtubeVideosInRange(monStart, monEnd).length;
+    } else {
+      uploaded = daysInMonth(mk).filter(d=>d.entry.status==="Uploaded").length;
+    }
     const daysInM = new Date(today.getFullYear(), today.getMonth()+1, 0).getDate();
     const expectedPace = goal.uploadTarget * (today.getDate()/daysInM);
     if(uploaded < expectedPace - 1){
@@ -5052,6 +5136,7 @@ function checkAndFireNotifications(){
    in state.notifSettings.remindersFired) and everything stops the moment
    the Short is marked Uploaded. */
 function checkDailyUploadReminders(){
+  if(isYoutubeConnected()) return; // Planner is cosmetic once connected — nothing real to remind about
   const todayIso = todayISO();
   const entry = getDay(todayIso);
   if(!entry || !entry.title) return;           // nothing planned today
@@ -5183,6 +5268,31 @@ function youtubeMetricsForRange(startISO, endISO){
     _videoCount: videos.length,
   };
 }
+// Used only for single-day comparisons (custom/yesterday modes). If nothing
+// was actually published on the exact day being compared, this finds the
+// channel's closest real upload by publish date instead of showing a wall
+// of zeros — clearly flagged as a fallback so it's never mistaken for that
+// day's real numbers.
+function youtubeNearestVideoMetrics(targetISO){
+  const videos = (state.youtube && state.youtube.recentVideos) || [];
+  if(!videos.length) return null;
+  const targetDate = new Date(targetISO+"T00:00:00");
+  let nearest = null, nearestDiff = Infinity;
+  videos.forEach(v=>{
+    const vDate = new Date(toISO(new Date(v.publishedAt))+"T00:00:00");
+    const diff = Math.abs(vDate - targetDate);
+    if(diff < nearestDiff){ nearestDiff = diff; nearest = v; }
+  });
+  if(!nearest) return null;
+  return {
+    views24: Number(nearest.views||0), views48: 0, views7d: 0,
+    likes: Number(nearest.likes||0), comments: Number(nearest.comments||0),
+    shares: 0, subs: 0, _videoCount: 1,
+    _fallback: true,
+    _fallbackTitle: nearest.title,
+    _fallbackDate: toISO(new Date(nearest.publishedAt)),
+  };
+}
 function pctDiff(a,b){
   if(a===0 && b===0) return 0;
   if(a===0) return 100;
@@ -5201,12 +5311,16 @@ function runCompare(){
     labelA = dA; labelB = dB;
     mA = connected ? youtubeMetricsForRange(dA, dA) : metricsFor(getDay(dA));
     mB = connected ? youtubeMetricsForRange(dB, dB) : metricsFor(getDay(dB));
+    if(connected && mA._videoCount===0){ const fb = youtubeNearestVideoMetrics(dA); if(fb) mA = fb; }
+    if(connected && mB._videoCount===0){ const fb = youtubeNearestVideoMetrics(dB); if(fb) mB = fb; }
   } else if(mode==="yesterday"){
     const today = new Date(); const y = new Date(); y.setDate(y.getDate()-1);
     const yISO = toISO(y), todayISOStr = toISO(today);
     labelA = "Yesterday ("+yISO+")"; labelB = "Today ("+todayISOStr+")";
     mA = connected ? youtubeMetricsForRange(yISO, yISO) : metricsFor(getDay(yISO));
     mB = connected ? youtubeMetricsForRange(todayISOStr, todayISOStr) : metricsFor(getDay(todayISOStr));
+    if(connected && mA._videoCount===0){ const fb = youtubeNearestVideoMetrics(yISO); if(fb) mA = fb; }
+    if(connected && mB._videoCount===0){ const fb = youtubeNearestVideoMetrics(todayISOStr); if(fb) mB = fb; }
   } else if(mode==="week"){
     const today = new Date();
     const thisWeekStart = new Date(today); thisWeekStart.setDate(today.getDate()-today.getDay());
@@ -5259,12 +5373,16 @@ function runCompare(){
     dateB: document.getElementById("compareDateB").value
   };
 
+  const fallbackNotes = [];
+  if(connected && mA._fallback) fallbackNotes.push(`No upload on ${escapeHtml(labelA)} — showing the nearest one, "${escapeHtml(mA._fallbackTitle)}" (published ${mA._fallbackDate}).`);
+  if(connected && mB._fallback) fallbackNotes.push(`No upload on ${escapeHtml(labelB)} — showing the nearest one, "${escapeHtml(mB._fallbackTitle)}" (published ${mB._fallbackDate}).`);
   const connectedBanner = connected ? `
     <div class="card" style="margin-bottom:16px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
       <i class="fa-brands fa-youtube" style="font-size:18px; color:#FF0000;"></i>
       <div style="flex:1; min-width:0; font-size:12px; color:var(--text-dim);">
         Comparing real uploads from <strong>${escapeHtml(state.youtube.title||'your channel')}</strong>, matched by publish date.
-        ${mA._videoCount===0 && mB._videoCount===0 ? "No uploads found in either period." : ""}
+        ${mA._videoCount===0 && mB._videoCount===0 && !fallbackNotes.length ? "No uploads found in either period." : ""}
+        ${fallbackNotes.length ? `<br>${fallbackNotes.join("<br>")}` : ""}
       </div>
     </div>` : "";
 
