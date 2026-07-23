@@ -3027,6 +3027,95 @@ function isTiktokConnected(){
 }
 
 /* ============================================================
+   GENERIC CONNECTED-PLATFORM HELPERS
+   ----------------------------------------------------------------
+   Lets every "YouTube-only" feature (achievements, notifications,
+   goals, streaks, compare, statistics) automatically work for a
+   connected TikTok account too, without duplicating each function.
+============================================================ */
+function isAnyPlatformConnected(){
+  return isYoutubeConnected() || isTiktokConnected();
+}
+function activePlatformVideos(){
+  if(isTiktokConnected()) return (state.tiktok && state.tiktok.recentVideos) || [];
+  if(isYoutubeConnected()) return filteredYoutubeVideos();
+  return [];
+}
+function activePlatformAllVideos(){
+  if(isTiktokConnected()) return (state.tiktok && state.tiktok.recentVideos) || [];
+  if(isYoutubeConnected()) return (state.youtube && state.youtube.recentVideos) || [];
+  return [];
+}
+function activePlatformChannelStats(){
+  if(isTiktokConnected()){
+    const tt = state.tiktok || {};
+    const videos = tt.recentVideos || [];
+    return {
+      subs: Number(tt.followers||0),
+      views: videos.reduce((s,v)=>s+Number(v.views||0),0),
+      videos: Number(tt.videos||0),
+      likes: Number(tt.likes||0),
+      title: tt.displayName || "Your TikTok account",
+      avatar: tt.avatar || "",
+      connectedAt: tt.connectedAt || null,
+    };
+  }
+  if(isYoutubeConnected()){
+    const yt = state.youtube || {};
+    return {
+      subs: Number(yt.subs||0),
+      views: Number(yt.views||0),
+      videos: Number(yt.videos||0),
+      likes: null,
+      title: yt.title || "Your channel",
+      avatar: yt.avatar || "",
+      connectedAt: yt.connectedAt || null,
+    };
+  }
+  return { subs:0, views:0, videos:0, likes:0, title:"", avatar:"", connectedAt:null };
+}
+function activePlatformVideosInRange(startISO, endISO){
+  const videos = activePlatformAllVideos();
+  return videos.filter(v=>{
+    const d = toISO(new Date(v.publishedAt));
+    if(startISO && d < startISO) return false;
+    if(endISO && d > endISO) return false;
+    return true;
+  });
+}
+function activePlatformMetricsForRange(startISO, endISO){
+  const videos = activePlatformVideosInRange(startISO, endISO);
+  return {
+    views24: videos.reduce((s,v)=> s+Number(v.views||0), 0),
+    views48: 0, views7d: 0,
+    likes: videos.reduce((s,v)=> s+Number(v.likes||0), 0),
+    comments: videos.reduce((s,v)=> s+Number(v.comments||0), 0),
+    shares: 0, subs: 0,
+    _videoCount: videos.length,
+  };
+}
+function activePlatformNearestVideoMetrics(targetISO){
+  const videos = activePlatformAllVideos();
+  if(!videos.length) return null;
+  const targetDate = new Date(targetISO+"T00:00:00");
+  let nearest = null, nearestDiff = Infinity;
+  videos.forEach(v=>{
+    const vDate = new Date(toISO(new Date(v.publishedAt))+"T00:00:00");
+    const diff = Math.abs(vDate - targetDate);
+    if(diff < nearestDiff){ nearestDiff = diff; nearest = v; }
+  });
+  if(!nearest) return null;
+  return {
+    views24: Number(nearest.views||0), views48: 0, views7d: 0,
+    likes: Number(nearest.likes||0), comments: Number(nearest.comments||0),
+    shares: 0, subs: 0, _videoCount: 1,
+    _fallback: true,
+    _fallbackTitle: nearest.title,
+    _fallbackDate: toISO(new Date(nearest.publishedAt)),
+  };
+}
+
+/* ============================================================
    TIKTOK — REAL OAUTH + API CALLS
    ----------------------------------------------------------------
    Uses TikTok Login Kit's PKCE authorization-code flow. The Client
@@ -3136,6 +3225,7 @@ async function exchangeTiktokCodeAndLoad(code){
     };
     persist(true);
     renderTiktokProfile();
+    refreshAnalytics();
     showToastMsg(`Connected to ${state.tiktok.displayName}`, "fa-brands fa-tiktok");
   }catch(err){
     console.error("TikTok connect failed:", err);
@@ -3209,6 +3299,7 @@ async function refreshTiktokProfile(){
     });
     persist(true);
     renderTiktokProfile();
+    refreshAnalytics();
     showToastMsg("TikTok stats refreshed", "fa-solid fa-rotate");
   }catch(err){
     showToastMsg("Couldn't refresh — your TikTok session may have expired. Try Switch account.", "fa-solid fa-triangle-exclamation");
@@ -3227,6 +3318,7 @@ function disconnectTiktok(){
       persist(true);
       renderTiktokProfile();
       renderYoutubeProfile();
+      refreshAnalytics();
       showToastMsg("TikTok account disconnected", "fa-solid fa-link-slash");
     },
     {title:"Disconnect TikTok account?", confirmLabel:"Disconnect"}
@@ -4059,8 +4151,8 @@ function chartTextColor(){ return getComputedStyle(document.documentElement).get
 function chartGridColor(){ return getComputedStyle(document.documentElement).getPropertyValue("--border").trim() || "#262E42"; }
 
 function computeStreak(){
-  if(isYoutubeConnected()){
-    const videos = (state.youtube && state.youtube.recentVideos) || [];
+  if(isAnyPlatformConnected()){
+    const videos = activePlatformAllVideos();
     const uploadDates = [...new Set(videos.map(v=> toISO(new Date(v.publishedAt))))];
     if(uploadDates.length===0) return 0;
     const set = new Set(uploadDates);
@@ -4616,8 +4708,8 @@ function renderPlanner(){
   renderDayLegend();
   const plannerHintEl = document.querySelector("#view-planner .section-hint");
   if(plannerHintEl){
-    plannerHintEl.textContent = isYoutubeConnected()
-      ? "Your YouTube channel is connected, so this calendar is now a personal planning notepad — it no longer drives your Dashboard, Statistics, or Compare numbers, which come straight from YouTube. Click any day to jot down a title, notes, or a checklist for yourself."
+    plannerHintEl.textContent = isAnyPlatformConnected()
+      ? `Your ${isTiktokConnected() ? "TikTok account" : "YouTube channel"} is connected, so this calendar is now a personal planning notepad — it no longer drives your Dashboard, Statistics, or Compare numbers, which come straight from ${isTiktokConnected() ? "TikTok" : "YouTube"}. Click any day to jot down a title, notes, or a checklist for yourself.`
       : "Click any day to add a Short's title, status, checklist, and performance numbers. Colors below show each day's state.";
   }
   const mk = monthKeyOf(viewCursor);
@@ -4979,8 +5071,8 @@ function renderIdeas(){
   populateIdeaPillarFilter();
   const ideasHintEl = document.querySelector("#view-ideas .section-hint");
   if(ideasHintEl){
-    ideasHintEl.textContent = isYoutubeConnected()
-      ? "Capture Short ideas before they're ready for a specific date. Tag them and group them into content pillars. Your YouTube channel is connected, so the Planner calendar no longer drives your real stats — \"Send to Planner\" just logs the idea as a note on that date, it won't create a real upload."
+    ideasHintEl.textContent = isAnyPlatformConnected()
+      ? `Capture Short ideas before they're ready for a specific date. Tag them and group them into content pillars. Your ${isTiktokConnected() ? "TikTok account" : "YouTube channel"} is connected, so the Planner calendar no longer drives your real stats — "Send to Planner" just logs the idea as a note on that date, it won't create a real upload.`
       : "Capture Short ideas before they're ready for a specific date. Tag them, group them into content pillars, and send them straight to the Planner when you're ready to schedule.";
   }
   const search = document.getElementById("ideaSearchInput").value.trim().toLowerCase();
@@ -5011,7 +5103,7 @@ function renderIdeas(){
       ${idea.used ? `<div class="idea-used-chip"><i class="fa-solid fa-circle-check"></i> Already used</div>` : ""}
       <div class="idea-foot">
         <button class="btn btn-sm idea-edit-btn" title="Edit this idea"><i class="fa-solid fa-pen"></i> Edit</button>
-        <button class="btn btn-sm btn-primary idea-send-btn" title="${isYoutubeConnected() ? "Log this idea on a Planner date as a note — it won't affect your real YouTube stats" : "Create a planned Short from this idea"}"><i class="fa-solid fa-paper-plane"></i> ${isYoutubeConnected() ? "Log to Planner" : "Send"}</button>
+        <button class="btn btn-sm btn-primary idea-send-btn" title="${isAnyPlatformConnected() ? `Log this idea on a Planner date as a note — it won't affect your real ${isTiktokConnected() ? "TikTok" : "YouTube"} stats` : "Create a planned Short from this idea"}"><i class="fa-solid fa-paper-plane"></i> ${isAnyPlatformConnected() ? "Log to Planner" : "Send"}</button>
       </div>
     </div>`).join("");
   grid.querySelectorAll(".idea-edit-btn").forEach(b=> b.addEventListener("click", (e)=> openIdeaModal(e.target.closest(".idea-card").dataset.id)));
@@ -5103,8 +5195,8 @@ function openSendIdeaModal(id){
   document.getElementById("sendIdeaError").textContent = "";
   const sendIdeaHintEl = document.querySelector("#sendIdeaOverlay .section-hint");
   if(sendIdeaHintEl){
-    sendIdeaHintEl.textContent = isYoutubeConnected()
-      ? "Pick a date to log this idea as a note on the Planner calendar. Your YouTube channel is connected, so this is just a personal note — it won't create a real upload or affect your Dashboard/Statistics numbers, which come from YouTube directly."
+    sendIdeaHintEl.textContent = isAnyPlatformConnected()
+      ? `Pick a date to log this idea as a note on the Planner calendar. Your ${isTiktokConnected() ? "TikTok account" : "YouTube channel"} is connected, so this is just a personal note — it won't create a real upload or affect your Dashboard/Statistics numbers, which come from ${isTiktokConnected() ? "TikTok" : "YouTube"} directly.`
       : "Pick a date to create a planned Short from this idea. Its title, notes, category and tags carry over automatically.";
   }
   const dateInput = document.getElementById("sendIdeaDate");
@@ -5146,8 +5238,8 @@ document.getElementById("sendIdeaConfirm").addEventListener("click", ()=>{
   renderIdeas();
   refreshAnalytics();
   showToastMsg(
-    isYoutubeConnected()
-      ? "Logged as a note on the Planner — this is just for your own tracking and doesn't affect your real YouTube stats"
+    isAnyPlatformConnected()
+      ? `Logged as a note on the Planner — this is just for your own tracking and doesn't affect your real ${isTiktokConnected() ? "TikTok" : "YouTube"} stats`
       : "Sent to Planner — open the Planner to fill in more details",
     "fa-solid fa-paper-plane"
   );
@@ -5258,9 +5350,9 @@ function renderGoals(){
   const mk = monthKeyOf(now);
   document.getElementById("goalsMonthTag").textContent = MONTH_NAMES[now.getMonth()] + " " + now.getFullYear();
   let uploaded, totalViews;
-  if(isYoutubeConnected()){
+  if(isAnyPlatformConnected()){
     const [monStart, monEnd] = monthRangeISO(now);
-    const videosThisMonth = youtubeVideosInRange(monStart, monEnd);
+    const videosThisMonth = activePlatformVideosInRange(monStart, monEnd);
     uploaded = videosThisMonth.length;
     totalViews = videosThisMonth.reduce((s,v)=> s+Number(v.views||0), 0);
   } else {
@@ -5299,9 +5391,9 @@ function renderStreakHeatmap(){
   const wrap = document.getElementById("streakHeatmap");
   const cells = [];
   const today = new Date();
-  const connected = isYoutubeConnected();
+  const connected = isAnyPlatformConnected();
   const uploadDateSet = connected
-    ? new Set(((state.youtube && state.youtube.recentVideos) || []).map(v=> toISO(new Date(v.publishedAt))))
+    ? new Set(activePlatformAllVideos().map(v=> toISO(new Date(v.publishedAt))))
     : null;
   for(let i=34;i>=0;i--){
     const d = new Date(today); d.setDate(d.getDate()-i);
@@ -5350,7 +5442,7 @@ function hasResilientBounceBack(flat){
 }
 
 function computeAchievements(){
-  const youtubeConnected = isYoutubeConnected();
+  const youtubeConnected = isAnyPlatformConnected();
   const flat = allDaysFlat();
   const uploadedList = flat.filter(d=>d.entry.status==="Uploaded");
   const skippedCount = flat.filter(d=>d.entry.status==="Skipped").length;
@@ -5371,18 +5463,19 @@ function computeAchievements(){
       highCtrCount, weekendUploads, highViewShorts, perfectChecklistCount;
 
   if(youtubeConnected){
-    // Channel-tied achievements: driven by the connected channel's real,
-    // API-reported numbers instead of manual Planner entries.
-    const yt = state.youtube;
-    const videos = yt.recentVideos || [];
-    uploadedCount = Number(yt.videos || videos.length || 0);
-    totalViews = Number(yt.views || 0);
+    // Channel-tied achievements: driven by whichever platform (YouTube or
+    // TikTok) is connected, using its real, API-reported numbers instead
+    // of manual Planner entries.
+    const stats = activePlatformChannelStats();
+    const videos = activePlatformAllVideos();
+    uploadedCount = Number(stats.videos || videos.length || 0);
+    totalViews = Number(stats.views || 0);
     totalLikes = videos.reduce((s,v)=> s+Number(v.likes||0), 0);
     totalComments = videos.reduce((s,v)=> s+Number(v.comments||0), 0);
-    totalShares = 0;            // not exposed by the public YouTube Data API
-    totalSubs = Number(yt.subs || 0);
-    totalWatchtime = 0;         // requires the separate YouTube Analytics API
-    highCtrCount = 0;           // requires the separate YouTube Analytics API
+    totalShares = 0;            // not exposed by the public YouTube/TikTok APIs used here
+    totalSubs = Number(stats.subs || 0);
+    totalWatchtime = 0;         // requires a separate analytics API
+    highCtrCount = 0;           // requires a separate analytics API
     highViewShorts = videos.filter(v=> Number(v.views||0) >= 10000).length;
     perfectChecklistCount = 0;  // checklist is a manual-tracking concept
     distinctCategories = 0;     // categories are a manual-tracking concept
@@ -5467,16 +5560,19 @@ function computeAchievements(){
     {id:"resilient", name:"Bounce Back", desc:"Skip a Short, then still upload one within the next 3 days.", icon:"fa-solid fa-arrow-rotate-right", unlocked: hasResilientBounceBack(flat), progress: hasResilientBounceBack(flat) ? 1 : 0, label: hasResilientBounceBack(flat) ? "Done" : "Not yet"},
   ];
 
-  // Once unlocked, stay unlocked — switching between manual tracking and a
-  // connected channel changes which numbers feed the calculation above, but
-  // it should never take back an achievement already earned.
-  return rawAchievements.map(a=> Object.assign({}, a, {
-    unlocked: a.unlocked || state.achievementsUnlocked.includes(a.id)
-  }));
+  // Achievements always reflect the live, correctly-computed totals above —
+  // no longer force-kept unlocked from state.achievementsUnlocked. That
+  // "sticky" behavior meant a badge unlocked from bad or stale data (e.g. a
+  // miscalculated total during a mode switch) could stay incorrectly
+  // unlocked forever with no way to correct itself. state.achievementsUnlocked
+  // is still recorded (see checkAchievementsForNewUnlocks) purely so the
+  // "new achievement unlocked" toast/notification only fires once per
+  // achievement, not to override what's actually true right now.
+  return rawAchievements;
 }
 
 function renderBadges(){
-  const connected = isYoutubeConnected();
+  const connected = isAnyPlatformConnected();
   const allAchievements = computeAchievements();
   // Achievements needing data the public YouTube API never exposes (shares,
   // watch time, CTR, categories) are unwinnable once connected. Hide them
@@ -5488,8 +5584,8 @@ function renderBadges(){
   document.getElementById("achievementsTag").textContent = `${unlockedCount} / ${achievements.length} unlocked`;
   const achievementsHint = document.querySelector('#view-goals .goal-card:last-of-type .section-hint');
   if(achievementsHint){
-    achievementsHint.textContent = isYoutubeConnected()
-      ? `Unlocked automatically from your connected YouTube channel's real stats — nothing to configure.${hiddenCount ? ` ${hiddenCount} achievement${hiddenCount===1?'':'s'} that need${hiddenCount===1?'s':''} manual-tracking data (shares, watch time, CTR, categories) ${hiddenCount===1?'is':'are'} hidden while connected.` : ""}`
+    achievementsHint.textContent = isAnyPlatformConnected()
+      ? `Unlocked automatically from your connected ${isTiktokConnected() ? "TikTok account's" : "YouTube channel's"} real stats — nothing to configure.${hiddenCount ? ` ${hiddenCount} achievement${hiddenCount===1?'':'s'} that need${hiddenCount===1?'s':''} manual-tracking data (shares, watch time, CTR, categories) ${hiddenCount===1?'is':'are'} hidden while connected.` : ""}`
       : "Unlocked automatically as you plan, upload, and grow in the Planner calendar — nothing to configure.";
   }
   document.getElementById("badgeGrid").innerHTML = achievements.map(a=>`
@@ -5502,7 +5598,7 @@ function renderBadges(){
 }
 
 function checkAchievementsForNewUnlocks(){
-  const achievements = computeAchievements().filter(a=> !isYoutubeConnected() || !a.manualOnly || a.unlocked);
+  const achievements = computeAchievements().filter(a=> !isAnyPlatformConnected() || !a.manualOnly || a.unlocked);
   let changed = false;
   achievements.forEach(a=>{
     if(a.unlocked && !state.achievementsUnlocked.includes(a.id)){
@@ -5526,7 +5622,7 @@ function computeNotifications(){
   const list = [];
   const today = new Date();
   const todayIso = todayISO();
-  const connected = isYoutubeConnected();
+  const connected = isAnyPlatformConnected();
 
   // These four checks are all about the manual Planner calendar, which is
   // purely cosmetic once a real YouTube channel is connected (see the
@@ -5576,7 +5672,7 @@ function computeNotifications(){
     let uploaded;
     if(connected){
       const [monStart, monEnd] = monthRangeISO(today);
-      uploaded = youtubeVideosInRange(monStart, monEnd).length;
+      uploaded = activePlatformVideosInRange(monStart, monEnd).length;
     } else {
       uploaded = daysInMonth(mk).filter(d=>d.entry.status==="Uploaded").length;
     }
@@ -5710,7 +5806,7 @@ function checkAndFireNotifications(){
    in state.notifSettings.remindersFired) and everything stops the moment
    the Short is marked Uploaded. */
 function checkDailyUploadReminders(){
-  if(isYoutubeConnected()) return; // Planner is cosmetic once connected — nothing real to remind about
+  if(isAnyPlatformConnected()) return; // Planner is cosmetic once connected — nothing real to remind about
   const todayIso = todayISO();
   const entry = getDay(todayIso);
   if(!entry || !entry.title) return;           // nothing planned today
@@ -5875,7 +5971,7 @@ function pctDiff(a,b){
 
 function runCompare(){
   const mode = document.getElementById("compareMode").value;
-  const connected = isYoutubeConnected();
+  const connected = isAnyPlatformConnected();
   let labelA, labelB, mA, mB;
 
   if(mode==="custom"){
@@ -5883,18 +5979,18 @@ function runCompare(){
     const dB = document.getElementById("compareDateB").value;
     if(!dA || !dB){ showToastMsg("Pick both dates", "fa-solid fa-circle-exclamation"); return; }
     labelA = dA; labelB = dB;
-    mA = connected ? youtubeMetricsForRange(dA, dA) : metricsFor(getDay(dA));
-    mB = connected ? youtubeMetricsForRange(dB, dB) : metricsFor(getDay(dB));
-    if(connected && mA._videoCount===0){ const fb = youtubeNearestVideoMetrics(dA); if(fb) mA = fb; }
-    if(connected && mB._videoCount===0){ const fb = youtubeNearestVideoMetrics(dB); if(fb) mB = fb; }
+    mA = connected ? activePlatformMetricsForRange(dA, dA) : metricsFor(getDay(dA));
+    mB = connected ? activePlatformMetricsForRange(dB, dB) : metricsFor(getDay(dB));
+    if(connected && mA._videoCount===0){ const fb = activePlatformNearestVideoMetrics(dA); if(fb) mA = fb; }
+    if(connected && mB._videoCount===0){ const fb = activePlatformNearestVideoMetrics(dB); if(fb) mB = fb; }
   } else if(mode==="yesterday"){
     const today = new Date(); const y = new Date(); y.setDate(y.getDate()-1);
     const yISO = toISO(y), todayISOStr = toISO(today);
     labelA = "Yesterday ("+yISO+")"; labelB = "Today ("+todayISOStr+")";
-    mA = connected ? youtubeMetricsForRange(yISO, yISO) : metricsFor(getDay(yISO));
-    mB = connected ? youtubeMetricsForRange(todayISOStr, todayISOStr) : metricsFor(getDay(todayISOStr));
-    if(connected && mA._videoCount===0){ const fb = youtubeNearestVideoMetrics(yISO); if(fb) mA = fb; }
-    if(connected && mB._videoCount===0){ const fb = youtubeNearestVideoMetrics(todayISOStr); if(fb) mB = fb; }
+    mA = connected ? activePlatformMetricsForRange(yISO, yISO) : metricsFor(getDay(yISO));
+    mB = connected ? activePlatformMetricsForRange(todayISOStr, todayISOStr) : metricsFor(getDay(todayISOStr));
+    if(connected && mA._videoCount===0){ const fb = activePlatformNearestVideoMetrics(yISO); if(fb) mA = fb; }
+    if(connected && mB._videoCount===0){ const fb = activePlatformNearestVideoMetrics(todayISOStr); if(fb) mB = fb; }
   } else if(mode==="week"){
     const today = new Date();
     const thisWeekStart = new Date(today); thisWeekStart.setDate(today.getDate()-today.getDay());
@@ -5903,8 +5999,8 @@ function runCompare(){
     const lastWeekEnd = new Date(lastWeekStart); lastWeekEnd.setDate(lastWeekStart.getDate()+6);
     labelA = "Last week"; labelB = "This week";
     if(connected){
-      mA = youtubeMetricsForRange(toISO(lastWeekStart), toISO(lastWeekEnd));
-      mB = youtubeMetricsForRange(toISO(thisWeekStart), toISO(thisWeekEnd));
+      mA = activePlatformMetricsForRange(toISO(lastWeekStart), toISO(lastWeekEnd));
+      mB = activePlatformMetricsForRange(toISO(thisWeekStart), toISO(thisWeekEnd));
     } else {
       const thisWeekEntries = [], lastWeekEntries = [];
       for(let i=0;i<7;i++){
@@ -5922,8 +6018,8 @@ function runCompare(){
     if(connected){
       const [prevStart, prevEnd] = monthRangeISO(prev);
       const [curStart, curEnd] = monthRangeISO(cur);
-      mA = youtubeMetricsForRange(prevStart, prevEnd);
-      mB = youtubeMetricsForRange(curStart, curEnd);
+      mA = activePlatformMetricsForRange(prevStart, prevEnd);
+      mB = activePlatformMetricsForRange(curStart, curEnd);
     } else {
       const curEntries = daysInMonth(monthKeyOf(cur)).map(d=>d.entry);
       const prevEntries = daysInMonth(monthKeyOf(prev)).map(d=>d.entry);
@@ -5936,7 +6032,7 @@ function runCompare(){
   // subscriber/share counts) — so the other rows are hidden rather than
   // shown as permanent zeros, which would look broken.
   const rows = connected
-    ? [ {k:"Views (total, from YouTube)", key:"views24"}, {k:"Likes", key:"likes"}, {k:"Comments", key:"comments"} ]
+    ? [ {k:`Views (total, from ${isTiktokConnected() ? "TikTok" : "YouTube"})`, key:"views24"}, {k:"Likes", key:"likes"}, {k:"Comments", key:"comments"} ]
     : [ {k:"Views (24h)", key:"views24"}, {k:"Views (48h)", key:"views48"}, {k:"Views (7d)", key:"views7d"},
         {k:"Likes", key:"likes"}, {k:"Comments", key:"comments"}, {k:"Shares", key:"shares"}, {k:"Subscribers gained", key:"subs"} ];
   const winner = mB.views24 > mA.views24 ? labelB : (mA.views24 > mB.views24 ? labelA : "Tie");
@@ -5950,11 +6046,12 @@ function runCompare(){
   const fallbackNotes = [];
   if(connected && mA._fallback) fallbackNotes.push(`No upload on ${escapeHtml(labelA)} — showing the nearest one, "${escapeHtml(mA._fallbackTitle)}" (published ${mA._fallbackDate}).`);
   if(connected && mB._fallback) fallbackNotes.push(`No upload on ${escapeHtml(labelB)} — showing the nearest one, "${escapeHtml(mB._fallbackTitle)}" (published ${mB._fallbackDate}).`);
+  const platformStats = activePlatformChannelStats();
   const connectedBanner = connected ? `
     <div class="card" style="margin-bottom:16px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
-      <i class="fa-brands fa-youtube" style="font-size:18px; color:#FF0000;"></i>
+      <i class="fa-brands ${isTiktokConnected() ? 'fa-tiktok' : 'fa-youtube'}" style="font-size:18px; color:${isTiktokConnected() ? '#00F2EA' : '#FF0000'};"></i>
       <div style="flex:1; min-width:0; font-size:12px; color:var(--text-dim);">
-        Comparing real uploads from <strong>${escapeHtml(state.youtube.title||'your channel')}</strong>, matched by publish date.
+        Comparing real uploads from <strong>${escapeHtml(platformStats.title||'your account')}</strong>, matched by publish date.
         ${mA._videoCount===0 && mB._videoCount===0 && !fallbackNotes.length ? "No uploads found in either period." : ""}
         ${fallbackNotes.length ? `<br>${fallbackNotes.join("<br>")}` : ""}
       </div>
@@ -6073,8 +6170,8 @@ function renderCompetitorBenchmark(){
     return;
   }
   if(removeBtn) removeBtn.style.display = "inline-flex";
-  const yours = isYoutubeConnected()
-    ? { title: state.youtube.title||"Your channel", subs: Number(state.youtube.subs||0), views: Number(state.youtube.views||0), videos: Number(state.youtube.videos||0) }
+  const yours = isAnyPlatformConnected()
+    ? (()=>{ const s = activePlatformChannelStats(); return { title: s.title||"Your account", subs: Number(s.subs||0), views: Number(s.views||0), videos: Number(s.videos||0) }; })()
     : { title: "Your channel (manual)", subs: allDaysFlat().filter(d=>d.entry.status==="Uploaded").reduce((s,d)=>s+Number(d.entry.subs||0),0), views: allDaysFlat().reduce((s,d)=>s+Number(d.entry.views24||0),0), videos: allDaysFlat().filter(d=>d.entry.status==="Uploaded").length };
 
   function diffPill(mine, theirs){
@@ -6181,7 +6278,7 @@ document.getElementById("statsNextMonth").addEventListener("click", ()=>{ statsC
 
 function renderStats(){
   document.getElementById("statsMonthLabel").textContent = `${MONTH_NAMES[statsCursor.getMonth()]} ${statsCursor.getFullYear()}`;
-  if(isYoutubeConnected()){
+  if(isAnyPlatformConnected()){
     renderStatsConnectedMode();
     return;
   }
@@ -6328,10 +6425,10 @@ function longestStreakFromISODates(isoDates){
 // and renderDashboardConnectedMode() already use, just windowed to the
 // month statsCursor is pointed at (by each video's actual publish date).
 function renderStatsConnectedMode(){
-  const yt = state.youtube;
-  const allVideos = yt.recentVideos || [];
+  const platformStats = activePlatformChannelStats();
+  const allVideos = activePlatformAllVideos();
   const [monStart, monEnd] = monthRangeISO(statsCursor);
-  const days = youtubeVideosInRange(monStart, monEnd);
+  const days = activePlatformVideosInRange(monStart, monEnd);
 
   const totalViews = days.reduce((s,v)=>s+Number(v.views||0),0);
   const totalLikes = days.reduce((s,v)=>s+Number(v.likes||0),0);
@@ -6379,7 +6476,7 @@ function renderStatsConnectedMode(){
 
   const prev = new Date(statsCursor); prev.setMonth(prev.getMonth()-1);
   const [prevStart, prevEnd] = monthRangeISO(prev);
-  const prevDays = youtubeVideosInRange(prevStart, prevEnd);
+  const prevDays = activePlatformVideosInRange(prevStart, prevEnd);
   const prevTotalViews = prevDays.reduce((s,v)=>s+Number(v.views||0),0);
   const viewsGrowth = prevTotalViews>0 ? Math.round(((totalViews-prevTotalViews)/prevTotalViews)*100) : (totalViews>0?100:0);
   const uploadsGrowth = prevDays.length>0 ? Math.round(((days.length-prevDays.length)/prevDays.length)*100) : (days.length>0?100:0);
