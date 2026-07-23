@@ -977,10 +977,10 @@ textarea{resize:vertical; min-height:70px;}
 
       <div class="view" id="view-compare">
         <div class="card" style="margin-bottom:18px;">
-          <div class="section-title">Competitor benchmark</div>
-          <div class="section-hint">Track a public channel's subscriber/view/video counts to see how you stack up. Uses only public stats — no login required for them.</div>
-          <div class="compare-picker">
-            <div class="field" style="min-width:220px;"><label>Channel handle, ID, or URL</label><input class="field-input" id="competitorInput" placeholder="e.g. @mkbhd or UCxxxxxxxx"></div>
+          <div class="section-title" id="competitorCardTitle">Competitor benchmark</div>
+          <div class="section-hint" id="competitorCardHint">Track a public channel's subscriber/view/video counts to see how you stack up. Uses only public stats — no login required for them.</div>
+          <div class="compare-picker" id="competitorPickerRow">
+            <div class="field" style="min-width:220px;"><label id="competitorInputLabel">Channel handle, ID, or URL</label><input class="field-input" id="competitorInput" placeholder="e.g. @mkbhd or UCxxxxxxxx"></div>
             <button class="btn btn-primary" id="trackCompetitorBtn"><i class="fa-solid fa-crosshairs"></i> Track</button>
             <button class="btn" id="removeCompetitorBtn" style="display:none;"><i class="fa-solid fa-xmark"></i> Remove</button>
           </div>
@@ -3362,6 +3362,35 @@ function disconnectTiktok(){
     },
     {title:"Disconnect TikTok account?", confirmLabel:"Disconnect"}
   );
+}
+
+// Fully automatic refresh — mirrors autoRefreshYoutubeStatsSilently for
+// YouTube. Only works while the in-memory TikTok access token from this
+// session is still valid; if it's expired (e.g. right after a hard page
+// refresh, since TikTok tokens aren't persisted to disk) this quietly
+// does nothing and the last-known cached stats stay on screen.
+async function autoRefreshTiktokStatsSilently(){
+  if(!currentUser || !isTiktokConnected() || !ttAccessToken) return;
+  try{
+    const profile = await fetchTiktokUserInfo(ttAccessToken);
+    const videos = await fetchTiktokVideoList(ttAccessToken);
+    state.tiktok = Object.assign({}, state.tiktok, {
+      displayName: profile.display_name || state.tiktok.displayName,
+      handle: profile.username ? "@"+profile.username : state.tiktok.handle,
+      bio: profile.bio_description || state.tiktok.bio,
+      avatar: profile.avatar_url || state.tiktok.avatar,
+      followers: Number(profile.follower_count || 0),
+      likes: Number(profile.likes_count || 0),
+      videos: Number(profile.video_count || 0),
+      recentVideos: videos,
+    });
+    persist(false);
+    renderTiktokProfile();
+    if(document.querySelector(".view.active").id === "view-dashboard") renderDashboard();
+  }catch(e){
+    // Token likely expired mid-session — leave the last-known cached
+    // stats on screen rather than showing an error for a background task.
+  }
 }
 
 function renderTiktokProfile(){
@@ -6337,6 +6366,10 @@ async function fetchPublicChannelByHandleOrId(query){
 }
 
 async function trackCompetitor(){
+  if(isTiktokConnected()){
+    showToastMsg("TikTok doesn't offer a public lookup API for other accounts — this only works for YouTube channels.", "fa-solid fa-triangle-exclamation");
+    return;
+  }
   const input = document.getElementById("competitorInput");
   const query = input.value.trim();
   if(!query){ showToastMsg("Enter a channel handle, ID, or URL first", "fa-solid fa-circle-exclamation"); return; }
@@ -6359,6 +6392,37 @@ async function trackCompetitor(){
     btn.innerHTML = originalHtml;
   }
 }
+
+// Keeps the Competitor benchmark card's copy honest about what's actually
+// possible: YouTube's public Data API lets anyone look up any channel's
+// stats with just an API key, but TikTok has no equivalent endpoint for
+// looking up an arbitrary OTHER account's public stats — only the
+// signed-in account's own data is available via OAuth. So this card stays
+// YouTube-only for the "track someone else" side, and says so plainly
+// when TikTok is the connected platform instead of silently failing.
+function updateCompetitorCardCopy(){
+  const titleEl = document.getElementById("competitorCardTitle");
+  const hintEl = document.getElementById("competitorCardHint");
+  const labelEl = document.getElementById("competitorInputLabel");
+  const inputEl = document.getElementById("competitorInput");
+  const pickerRow = document.getElementById("competitorPickerRow");
+  if(!titleEl) return;
+  if(isTiktokConnected()){
+    titleEl.textContent = "Competitor benchmark (YouTube only)";
+    hintEl.textContent = "TikTok doesn't provide a public API for looking up other accounts' stats, so this feature only supports YouTube channels — your own TikTok numbers still appear everywhere else in the app.";
+    labelEl.textContent = "YouTube channel handle, ID, or URL";
+    inputEl.disabled = true;
+    inputEl.placeholder = "Not available while TikTok is connected";
+    pickerRow.style.opacity = ".55";
+  } else {
+    titleEl.textContent = "Competitor benchmark";
+    hintEl.textContent = "Track a public channel's subscriber/view/video counts to see how you stack up. Uses only public stats — no login required for them.";
+    labelEl.textContent = "Channel handle, ID, or URL";
+    inputEl.disabled = false;
+    inputEl.placeholder = "e.g. @mkbhd or UCxxxxxxxx";
+    pickerRow.style.opacity = "";
+  }
+}
 function removeCompetitor(){
   state.competitor = null;
   persist(true);
@@ -6367,6 +6431,7 @@ function removeCompetitor(){
   showToastMsg("Competitor removed", "fa-solid fa-xmark");
 }
 function renderCompetitorBenchmark(){
+  updateCompetitorCardCopy();
   const resultEl = document.getElementById("competitorResult");
   const removeBtn = document.getElementById("removeCompetitorBtn");
   if(!resultEl) return;
