@@ -4089,6 +4089,21 @@ function computeStreak(){
 function renderDashboardBanner(){
   const banner = document.getElementById("dashboardModeBanner");
   if(!banner) return;
+  if(isTiktokConnected()){
+    const tt = state.tiktok;
+    banner.innerHTML = `
+      <div class="card" style="margin-bottom:16px; display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+        <img class="tt-avatar" style="width:40px; height:40px;" src="${tt.avatar||''}" alt="">
+        <div style="flex:1; min-width:0;">
+          <div style="font-weight:700; font-size:13.5px;">Showing live TikTok data for ${escapeHtml(tt.displayName||'your account')}</div>
+          <div style="font-size:11.5px; color:var(--text-dim);">${tt.connectedAt ? 'Last synced '+new Date(tt.connectedAt).toLocaleString() : ''} — manual Planner entries are no longer used for these stats.</div>
+        </div>
+        <button class="btn btn-sm" id="dashboardGoToTtBtn"><i class="fa-brands fa-tiktok"></i> View account</button>
+      </div>`;
+    const btn = document.getElementById("dashboardGoToTtBtn");
+    if(btn) btn.addEventListener("click", ()=> activateView("tiktok"));
+    return;
+  }
   if(isYoutubeConnected()){
     const yt = state.youtube;
     banner.innerHTML = `
@@ -4135,6 +4150,10 @@ function renderDashboard(){
     greetEl.textContent = `${greeting}${currentUser ? ", "+currentUser : ""} — here's your channel's control room`;
   }
 
+  if(isTiktokConnected()){
+    renderDashboardTiktokMode();
+    return;
+  }
   if(isYoutubeConnected()){
     renderDashboardConnectedMode();
     return;
@@ -4366,6 +4385,100 @@ function renderDashboardConnectedMode(){
     });
 
     }
+}
+
+function renderDashboardTiktokMode(){
+  const tt = state.tiktok;
+  const videos = tt.recentVideos || [];
+
+  document.getElementById("dashProgressTitle").innerHTML = 'Recent videos <span class="tag" id="monthTag"></span>';
+  document.getElementById("dashProgressHint").textContent = "How many of your account's videos are represented in the batch shown below.";
+  document.getElementById("dashBestWorstHint").textContent = "Your highest- and lowest-viewed video in the batch above, ranked by total views.";
+  document.getElementById("dashDailyViewsTitle").textContent = "Cumulative views";
+  document.getElementById("dashDailyViewsHint").textContent = "Running total of views as each recent video adds to the total, ordered by publish date.";
+  document.getElementById("dashStatusTitle").textContent = "Views, likes & comments";
+  document.getElementById("dashStatusHint").textContent = "Combined totals across the videos shown above.";
+
+  const cards = [
+    {label:"Followers", value:(tt.followers||0).toLocaleString(), sub:"account total", icon:"fa-solid fa-users", cls:"stat-accent", source:"youtube"},
+    {label:"Total likes", value:(tt.likes||0).toLocaleString(), sub:"all-time, all videos", icon:"fa-solid fa-heart", cls:"stat-gold", source:"youtube"},
+    {label:"Recent videos shown", value:videos.length, sub:"public videos found", icon:"fa-solid fa-video", cls:"stat-teal", source:"youtube"},
+    {label:"Avg views / video", value: videos.length ? Math.round(videos.reduce((s,v)=>s+v.views,0)/videos.length).toLocaleString() : "0", sub:"in view above", icon:"fa-solid fa-chart-simple", cls:"stat-accent", source:"youtube"},
+  ];
+  document.getElementById("statCards").innerHTML = cards.map(c=>`
+    <div class="card stat-card lift">
+      <i class="glyph ${c.icon} ${c.cls}"></i>
+      <div class="src-tag src-youtube"><i class="fa-brands fa-tiktok"></i>Live</div>
+      <div class="label">${c.label}</div>
+      <div class="value ${c.cls}">${c.value}</div>
+      <div class="sub">${c.sub}</div>
+    </div>`).join("");
+
+  document.getElementById("monthTag").textContent = "Live from TikTok";
+  const pct = tt.videos ? Math.min(100, Math.round((videos.length/tt.videos)*100)) : 0;
+  document.getElementById("progressFill").style.width = pct+"%";
+  document.getElementById("progressLabel").textContent = `${videos.length} of ${tt.videos||0} account videos in view`;
+  document.getElementById("progressPct").textContent = pct+"%";
+
+  const best = videos.reduce((b,v)=> (!b||v.views>b.views)?v:b, null);
+  const worst = videos.reduce((w,v)=> (!w||v.views<w.views)?v:w, null);
+  const bw = document.getElementById("bestWorstBox");
+  function rowFor(v, tag, color){
+    if(!v) return `<div class="mini-video-row"><div class="mv-info"><div class="mv-title" style="color:var(--text-faint)">No data yet</div></div></div>`;
+    return `<div class="mini-video-row">
+      <div class="mv-badge" style="background:${color}22; color:${color};"><i class="fa-solid ${tag==='best'?'fa-arrow-trend-up':'fa-arrow-trend-down'}"></i></div>
+      <div class="mv-info">
+        <div class="mv-title">${escapeHtml(v.title)}</div>
+        <div class="mv-meta">${new Date(v.publishedAt).toLocaleDateString()}</div>
+      </div>
+      <div class="mv-value">${v.views.toLocaleString()}</div>
+    </div>`;
+  }
+  bw.innerHTML = rowFor(best,"best","#2FE5C4") + rowFor(worst,"worst","#FF4D5E");
+
+  if(chartLibReady("dailyViewsChart")){
+    document.getElementById("dashDailyViewsToolbar").style.display = "none";
+    const ctx = document.getElementById("dailyViewsChart");
+    const sorted = [...videos].sort((a,b)=> new Date(a.publishedAt)-new Date(b.publishedAt));
+    let runningTotal = 0;
+    const cumulativeData = sorted.map(v=>{ runningTotal += Number(v.views||0); return runningTotal; });
+    if(chartDaily) chartDaily.destroy();
+    chartDaily = new Chart(ctx, {
+      type:"line",
+      data:{ labels: sorted.map(v=> new Date(v.publishedAt).toLocaleDateString()), datasets:[{ label:"Cumulative Views", data: cumulativeData, borderColor:"#00C9C2", backgroundColor:"rgba(0,201,194,.15)", fill:true, tension:.35, pointRadius:3, pointBackgroundColor:"#00C9C2" }]},
+      options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+        scales:{ x:{grid:{color:chartGridColor()}, ticks:{color:chartTextColor(), maxRotation:0, autoSkip:true, maxTicksLimit:8}}, y:{grid:{color:chartGridColor()}, ticks:{color:chartTextColor()}} } }
+    });
+  }
+  if(chartLibReady("statusChart")){
+    const ctx2 = document.getElementById("statusChart");
+    const totalLikes = videos.reduce((s,v)=>s+v.likes,0);
+    const totalComments = videos.reduce((s,v)=>s+v.comments,0);
+    const totalViews = videos.reduce((s,v)=>s+v.views,0);
+    if(chartStatus) chartStatus.destroy();
+    const donutLabels = ["Views","Likes","Comments"];
+    const donutData = [totalViews,totalLikes,totalComments];
+    const donutColors = ["#00C9C2","#FF0050","#7C5CFC"];
+    chartStatus = new Chart(ctx2, {
+      type:"doughnut",
+      data:{ labels:donutLabels, datasets:[{ data:donutData, backgroundColor:donutColors, borderWidth:0 }]},
+      options:{
+        responsive:true, maintainAspectRatio:false, cutout:"62%",
+        plugins:{
+          legend:{ position:"bottom", labels:{ color:chartTextColor(), boxWidth:10, padding:14, font:{size:11.5} } },
+          tooltip:{
+            callbacks:{
+              label:(item)=>{
+                const total = totalViews + totalLikes + totalComments;
+                const pct = total>0 ? ((item.parsed/total)*100).toFixed(1) : "0.0";
+                return ` ${item.label}: ${item.parsed.toLocaleString()} (${pct}%)`;
+              }
+            }
+          }
+        }
+      }
+    });
+  }
 }
 
 function chartLibReady(canvasId){
