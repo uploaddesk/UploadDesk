@@ -243,7 +243,7 @@ img, svg, canvas{max-width:100%;}
 @keyframes statPop{ from{opacity:0; transform:translateY(10px) scale(.96);} to{opacity:1; transform:translateY(0) scale(1);} }
 .section-title{font-family:var(--font-display); font-weight:700; font-size:15px; margin-bottom:14px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:6px;}
 .section-title .tag{font-size:11px; font-weight:600; color:var(--text-faint); font-family:var(--font-body); text-transform:uppercase; letter-spacing:.6px;}
-.section-hint{font-size:12px; color:var(--text-faint); margin-top:-8px; margin-bottom:14px; line-height:1.5;}
+.section-hint{font-size:12px; color:var(--text-faint); margin-top:-8px; margin-bottom:10px; line-height:1.5;}
 .progress-track{height:10px; border-radius:20px; background:var(--surface-3); overflow:hidden;}
 .progress-fill{height:100%; border-radius:20px; background:linear-gradient(90deg, var(--accent), var(--gold)); transition:width .5s ease;}
 .mini-video-row{display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid var(--border);}
@@ -391,8 +391,10 @@ textarea{resize:vertical; min-height:70px;}
 .notif-msg{font-size:11.5px; color:var(--text-dim); margin-top:2px; line-height:1.4;}
 .notif-dismiss{background:none; border:none; color:var(--text-faint); cursor:pointer; width:26px; height:26px; border-radius:7px; flex-shrink:0; font-size:11px;}
 .notif-dismiss:hover{background:var(--surface-3); color:var(--text);}
-.idea-toolbar{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px; align-items:center;}
-.idea-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(260px,1fr)); gap:14px;}
+.idea-toolbar{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:6px; align-items:center; row-gap:8px;}
+.idea-filter-row{display:flex; gap:10px; flex:1 1 220px; min-width:0; align-items:flex-start;}
+.idea-filter-row select{flex:1; min-width:0; height:44px; align-self:flex-start;}
+.idea-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(260px,1fr)); gap:14px; align-content:start; align-items:start; grid-auto-rows:min-content; margin-top:0; padding-top:0;}
 .idea-card{background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-m); padding:16px; display:flex; flex-direction:column; gap:10px; transition:border-color .15s ease, transform .15s ease;}
 .idea-card:hover{border-color:var(--accent); transform:translateY(-2px);}
 .idea-card .idea-title{font-weight:700; font-size:14px; line-height:1.35;}
@@ -427,7 +429,7 @@ textarea{resize:vertical; min-height:70px;}
 .toast{background:var(--surface); border:1px solid var(--border); border-left:3px solid var(--teal); padding:12px 18px; border-radius:10px; font-size:13px; box-shadow:var(--shadow); animation:toastIn .25s ease, toastOut .3s ease 2.4s forwards; display:flex; align-items:center; gap:10px; max-width:100%; pointer-events:auto;}
 @keyframes toastIn{from{opacity:0; transform:translateX(30px);} to{opacity:1; transform:translateX(0);}}
 @keyframes toastOut{to{opacity:0; transform:translateX(30px);}}
-.empty-state{text-align:center; padding:50px 20px; color:var(--text-dim);}
+.empty-state{text-align:center; padding:30px 20px; color:var(--text-dim);}
 .empty-state i{font-size:34px; color:var(--text-faint); margin-bottom:14px;}
 .chip-cat{font-size:11px; font-weight:700; padding:3px 9px; border-radius:20px; background:var(--surface-3); color:var(--text-dim); white-space:nowrap;}
 .filters-bar{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:16px;}
@@ -512,8 +514,10 @@ textarea{resize:vertical; min-height:70px;}
   .toast-wrap{left:12px; right:12px; bottom:12px;}
   .toast{width:100%;}
   #notifPanel{position:fixed !important; top:64px !important; right:8px !important; left:8px !important; width:auto !important; max-width:none !important;}
-  .idea-toolbar{flex-direction:column; align-items:stretch;}
-  .idea-toolbar .search-wrap, .idea-toolbar select, .idea-toolbar .btn{width:100%;}
+  .idea-toolbar{flex-direction:column; align-items:stretch; gap:6px; margin-bottom:8px;}
+  .idea-toolbar .search-wrap, .idea-toolbar .btn{width:100%;}
+  .idea-filter-row{width:100%; gap:8px; align-items:flex-start;}
+  .idea-filter-row select{height:44px;}
   .idea-grid{grid-template-columns:1fr;}
   .goal-row{flex-wrap:wrap;}
   .goal-row input{width:100%;}
@@ -953,16 +957,18 @@ textarea{resize:vertical; min-height:70px;}
       </div>
 
       <div class="view" id="view-ideas">
-        <div class="section-hint" style="margin-top:0;">Capture Short ideas before they're ready for a specific date. Tag them, group them into content pillars, and send them straight to the Planner when you're ready to schedule.</div>
+        <div class="section-hint" style="margin-top:0;">Capture and tag Short ideas before they're ready to schedule.</div>
         <div class="idea-toolbar">
           <button class="btn btn-primary" id="addIdeaBtn" title="Add a new idea to your backlog"><i class="fa-solid fa-plus"></i> New idea</button>
-          <div class="search-wrap" style="width:200px;"><i class="fa-solid fa-magnifying-glass"></i><input id="ideaSearchInput" placeholder="Search ideas..." title="Show only ideas whose title or tags match this text"></div>
-          <select id="ideaPillarFilter" title="Show only ideas in this content pillar"><option value="">All pillars</option></select>
-          <select id="ideaStatusFilter" title="Show all ideas, or only ones not yet used / already used">
-            <option value="">All ideas</option>
-            <option value="backlog">Not yet used</option>
-            <option value="used">Already used</option>
-          </select>
+          <div class="search-wrap" style="width:100%; position:relative;"><i class="fa-solid fa-magnifying-glass"></i><input id="ideaSearchInput" placeholder="Search ideas..." title="Show only ideas whose title or tags match this text" style="padding-right:26px;"><button type="button" id="ideaSearchClearBtn" title="Clear search" style="display:none; position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-faint); cursor:pointer; width:20px; height:20px; padding:0; align-items:center; justify-content:center;"><i class="fa-solid fa-xmark"></i></button></div>
+          <div class="idea-filter-row">
+            <select id="ideaPillarFilter" title="Show only ideas in this content pillar"><option value="">All pillars</option></select>
+            <select id="ideaStatusFilter" title="Show all ideas, or only ones not yet used / already used">
+              <option value="">All ideas</option>
+              <option value="backlog">Not yet used</option>
+              <option value="used">Already used</option>
+            </select>
+          </div>
         </div>
         <div id="ideaGrid" class="idea-grid"></div>
       </div>
@@ -971,7 +977,7 @@ textarea{resize:vertical; min-height:70px;}
         <div class="grid grid-2col">
           <div class="goal-card">
             <div class="section-title">Monthly targets <span class="tag" id="goalsMonthTag"></span></div>
-            <div class="section-hint">Set what you're aiming for this month. Progress updates automatically as you plan and upload Shorts.</div>
+            <div class="section-hint">Set your goals for this month.</div>
             <div class="goal-row">
               <div class="gr-info">
                 <div class="gr-label"><span>Uploads</span><span class="gr-num" id="goalUploadNum">0 / 0</span></div>
@@ -990,14 +996,14 @@ textarea{resize:vertical; min-height:70px;}
           </div>
           <div class="goal-card">
             <div class="section-title">Streak history</div>
-            <div class="section-hint">Last 35 days — teal means an Upload landed that day.</div>
+            <div class="section-hint">Last 35 days of uploads.</div>
             <div class="streak-heatmap" id="streakHeatmap"></div>
           </div>
         </div>
         <div style="height:16px"></div>
         <div class="goal-card">
           <div class="section-title">Achievements <span class="tag" id="achievementsTag"></span></div>
-          <div class="section-hint">Unlocked automatically as you plan, upload, and grow — nothing to configure.</div>
+          <div class="section-hint">Unlocked as you grow nothing to configure.</div>
           <div class="badge-grid" id="badgeGrid"></div>
         </div>
       </div>
@@ -1005,7 +1011,7 @@ textarea{resize:vertical; min-height:70px;}
       <div class="view" id="view-compare">
         <div class="card" style="margin-bottom:18px;">
           <div class="section-title" id="competitorCardTitle">Competitor benchmark</div>
-          <div class="section-hint" id="competitorCardHint">Look up any public YouTube channel by handle, ID, or URL to compare its subscribers, views, and video count against yours.</div>
+          <div class="section-hint" id="competitorCardHint">Look up any public YouTube channel to compare stats.</div>
           <div class="compare-picker" id="competitorPickerRow">
             <div class="field" style="min-width:220px;"><label id="competitorInputLabel">Channel handle, ID, or URL</label><input class="field-input" id="competitorInput" placeholder="e.g. @mkbhd or UCxxxxxxxx"></div>
             <button class="btn btn-primary" id="trackCompetitorBtn"><i class="fa-solid fa-crosshairs"></i> Track</button>
@@ -1015,7 +1021,7 @@ textarea{resize:vertical; min-height:70px;}
         </div>
         <div class="card" style="margin-bottom:18px;" id="tiktokCompetitorCard">
           <div class="section-title">TikTok competitor benchmark <span class="tag">Manual entry</span></div>
-          <div class="section-hint">TikTok accounts can't be looked up automatically, so add their numbers yourself — open their profile, copy what's shown, and paste it in below. Update it anytime to keep the comparison current.</div>
+          <div class="section-hint">Enter their stats manually to compare TikTok can't be looked up automatically.</div>
           <div class="form-grid" id="ttCompetitorForm">
             <div class="field"><label>Account handle</label><input class="field-input" id="ttCompInput-handle" placeholder="e.g. @username"></div>
             <div class="field"><label>Followers</label><input type="number" class="field-input" id="ttCompInput-followers" placeholder="0"></div>
@@ -1030,7 +1036,7 @@ textarea{resize:vertical; min-height:70px;}
         </div>
         <div class="card" style="margin-bottom:18px;">
           <div class="section-title">Choose comparison</div>
-          <div class="section-hint">Pick two time periods to compare side by side, then press Compare. "Two selected days" lets you pick any dates yourself.</div>
+          <div class="section-hint">Pick two time periods to compare.</div>
           <div class="compare-picker">
             <div class="field" style="min-width:150px;"><label>Mode</label>
               <select id="compareMode" title="Choose what kind of comparison to run">
@@ -1059,25 +1065,25 @@ textarea{resize:vertical; min-height:70px;}
         <div class="grid grid-2col">
           <div class="card">
             <div class="section-title">Monthly statistics</div>
-            <div class="section-hint">Totals and trends for the month shown above.</div>
+            <div class="section-hint">Totals for this month.</div>
             <div id="statsList"></div>
           </div>
           <div class="card">
             <div class="section-title">Best category</div>
-            <div class="section-hint">Which content category earned the most total views this month.</div>
+            <div class="section-hint">Your top category by views.</div>
             <div class="chart-wrap"><canvas id="categoryChart" height="180"></canvas></div>
           </div>
         </div>
         <div style="height:16px"></div>
         <div class="card">
           <div class="section-title">Title patterns <span class="tag" id="titlePatternsTag"></span></div>
-          <div class="section-hint">Simple correlations between title traits and views, based on your own upload history.</div>
+          <div class="section-hint">How title traits affect your views.</div>
           <div id="titlePatternsList"></div>
         </div>
         <div style="height:16px"></div>
         <div class="card">
           <div class="section-title">Upload performance over time</div>
-          <div class="section-hint">7-day view counts across every month you've tracked, so you can see the longer trend.</div>
+          <div class="section-hint">Your view trend over time.</div>
           <div class="chart-toolbar" id="statsPerfToolbar" style="display:none;">
             <div class="seg" id="statsPerfRangeSeg">
               <button data-range="30" class="active">30D</button>
@@ -1093,7 +1099,7 @@ textarea{resize:vertical; min-height:70px;}
       <div class="view" id="view-data">
         <div class="card">
           <div class="section-title">Backup & export</div>
-          <div class="section-hint">Save a copy of your data, or turn it into a spreadsheet. Your data already syncs automatically to your account — these are for extra backups or moving data elsewhere.</div>
+          <div class="section-hint">Save a copy of your data or export it as a spreadsheet.</div>
           <div class="data-actions">
             <div class="data-action" id="exportJsonBtn" title="Download a full backup file of everything in Upload Desk"><i class="fa-solid fa-file-code"></i><div class="t">Export JSON</div><div class="d">Full backup of all months</div></div>
             <div class="data-action" id="exportCsvBtn" title="Download a plain-text spreadsheet file"><i class="fa-solid fa-file-csv"></i><div class="t">Export CSV</div><div class="d">Spreadsheet-friendly export</div></div>
@@ -1105,7 +1111,7 @@ textarea{resize:vertical; min-height:70px;}
         <div style="height:16px"></div>
         <div class="card">
           <div class="section-title">Danger zone</div>
-          <div class="section-hint">These actions permanently delete data from this browser and can't be undone — export a backup first if you're not sure.</div>
+          <div class="section-hint">Permanent and can't be undone export a backup first.</div>
           <div class="data-actions">
             <div class="data-action" id="wipeAllBtn" style="border-color:var(--accent-dim);" title="Permanently delete every month, Short, and analytics figure"><i class="fa-solid fa-triangle-exclamation" style="color:var(--accent);"></i><div class="t">Erase all data</div><div class="d">Deletes every month permanently</div></div>
           </div>
@@ -1113,7 +1119,7 @@ textarea{resize:vertical; min-height:70px;}
         <div style="height:16px"></div>
         <div class="card">
           <div class="section-title">Storage status</div>
-          <div class="section-hint">Upload Desk saves automatically to your account in the cloud as you make changes, and syncs across every device you log into.</div>
+          <div class="section-hint">Saves automatically and syncs across your devices.</div>
           <div class="stat-list-item"><span class="k">Save status</span><span class="v" id="syncStatusRow">—</span></div>
           <div class="stat-list-item"><span class="k">Last saved</span><span class="v" id="lastSaved">—</span></div>
           <div class="stat-list-item"><span class="k">Months tracked</span><span class="v" id="monthsTracked">0</span></div>
@@ -1125,7 +1131,7 @@ textarea{resize:vertical; min-height:70px;}
           <div class="card yt-connect-card">
             <div class="yt-connect-icon"><i class="fa-brands fa-youtube"></i></div>
             <div class="yt-connect-title">Connect your YouTube channel</div>
-            <div class="yt-connect-sub">Optional — link your own YouTube channel to see its live stats here. Your website login stays completely separate; connecting, switching, or disconnecting never affects your Upload Desk account or data.</div>
+            <div class="yt-connect-sub">Link your channel to see live stats here. This is separate from your Upload Desk login.</div>
 
             <button class="btn btn-primary" id="connectYoutubeBtn" style="width:100%; justify-content:center; margin-top:18px;"><i class="fa-brands fa-google"></i> Continue with Google</button>
 
@@ -1134,7 +1140,7 @@ textarea{resize:vertical; min-height:70px;}
             </div>
 
             <div id="ytEmailStep">
-              <div class="section-hint" style="margin-top:0; margin-bottom:10px;">We'll email you a code to confirm this address, then open a Google sign-in prompt for that account's channel.</div>
+              <div class="section-hint" style="margin-top:0; margin-bottom:10px;">We'll send a code to confirm your email.</div>
               <input class="field-input" id="ytEmailInput" type="email" placeholder="Enter your email" style="margin-bottom:12px;">
               <button class="btn" id="ytSendCodeBtn" style="width:100%; justify-content:center;">Continue with email</button>
               <div class="auth-error" id="ytEmailError" style="margin-top:8px;"></div>
@@ -1148,13 +1154,13 @@ textarea{resize:vertical; min-height:70px;}
               <button class="btn btn-ghost" id="ytResendCodeBtn" style="width:100%; justify-content:center; margin-top:8px; font-size:12px;">Resend code</button>
             </div>
 
-            <div class="section-hint" style="margin-top:14px; margin-bottom:0;">You'll sign in with the Google account that owns the channel and grant read-only access to its public info and stats. Upload Desk never sees your Google password. See our <a href="https://uploaddesk.github.io/UploadDesk/privacy.html" target="_blank" rel="noopener">Privacy Policy</a> for details.</div>
+            <div class="section-hint" style="margin-top:14px; margin-bottom:0;">Read-only access we never see your Google password. <a href="https://uploaddesk.github.io/UploadDesk/privacy.html" target="_blank" rel="noopener">Privacy Policy</a></div>
           </div>
         </div>
         <div id="youtubeConnected" style="display:none;">
           <div class="card" style="margin-bottom:16px;">
             <div class="section-title">Filter by date range</div>
-            <div class="section-hint">Narrows the analytics below to uploads published in this range. Leave blank to show everything fetched.</div>
+            <div class="section-hint">Show only uploads from this date range. Leave blank for all.</div>
             <div class="yt-filter-bar">
               <div class="field"><label>From</label><input type="date" class="field-input" id="ytFilterStartInput"></div>
               <div class="field"><label>To</label><input type="date" class="field-input" id="ytFilterEndInput"></div>
@@ -1265,9 +1271,9 @@ textarea{resize:vertical; min-height:70px;}
           <div class="card tt-connect-card">
             <div class="tt-connect-icon"><i class="fa-brands fa-tiktok"></i></div>
             <div class="tt-connect-title">Connect your TikTok account</div>
-            <div class="tt-connect-sub">Optional — link your own TikTok account to see its stats here. Your website login stays completely separate; connecting, switching, or disconnecting never affects your Upload Desk account or data.</div>
+            <div class="tt-connect-sub">Link your account to see live stats here. This is separate from your Upload Desk login.</div>
             <button class="btn btn-primary" id="connectTiktokBtn" style="width:100%; justify-content:center; margin-top:18px; background:linear-gradient(135deg, #00F2EA, #000000 55%, #FF0050); border-color:transparent;"><i class="fa-brands fa-tiktok"></i> Continue with TikTok</button>
-            <div class="section-hint" style="margin-top:14px; margin-bottom:0;">You'll sign in with TikTok and grant read-only access to your public profile and video stats. Upload Desk never sees your TikTok password. See our <a href="https://uploaddesk.github.io/UploadDesk/privacy.html" target="_blank" rel="noopener">Privacy Policy</a> for details.</div>
+            <div class="section-hint" style="margin-top:14px; margin-bottom:0;">Read-only access we never see your TikTok password. <a href="https://uploaddesk.github.io/UploadDesk/privacy.html" target="_blank" rel="noopener">Privacy Policy</a></div>
           </div>
         </div>
         <div id="tiktokConnected" style="display:none;">
@@ -1354,7 +1360,7 @@ textarea{resize:vertical; min-height:70px;}
       <div class="view" id="view-trash">
         <div class="card">
           <div class="section-title">Recycle Bin <span class="tag" id="trashCountTag">0 items</span></div>
-          <div class="section-hint">Deleted Shorts and ideas land here first instead of being removed right away. Restore them any time, or delete them permanently when you're sure. (The "Erase all data" option in Data is the one exception — that wipes the Trash too.)</div>
+          <div class="section-hint">Deleted items land here first. Restore them anytime, or delete permanently.</div>
           <div style="display:flex; justify-content:flex-end; margin-bottom:12px;">
             <button class="btn btn-sm" id="emptyTrashBtn" style="display:none; border-color:var(--accent-dim); color:var(--accent);" title="Permanently delete everything in the Trash"><i class="fa-solid fa-trash"></i> Empty Trash</button>
           </div>
@@ -4810,8 +4816,8 @@ function renderDashboardBanner(){
       <div class="card" style="margin-bottom:16px; display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
         <img class="yt-avatar" style="width:40px; height:40px;" src="${yt.avatar||''}" alt="">
         <div style="flex:1; min-width:0;">
-          <div style="font-weight:700; font-size:13.5px;">Showing live YouTube data for ${escapeHtml(yt.title||'your channel')}</div>
-          <div style="font-size:11.5px; color:var(--text-dim);">${yt.connectedAt ? 'Last synced '+new Date(yt.connectedAt).toLocaleString() : ''} — manual Planner entries are no longer used for these stats.</div>
+          <div style="font-weight:700; font-size:13.5px;">Live data from ${escapeHtml(yt.title||'your channel')}</div>
+          <div style="font-size:11.5px; color:var(--text-dim);">${yt.connectedAt ? 'Synced '+new Date(yt.connectedAt).toLocaleString() : ''}</div>
         </div>
         <button class="btn btn-sm" id="dashboardGoToYtBtn"><i class="fa-brands fa-youtube"></i> View channel</button>
       </div>`;
@@ -4822,8 +4828,8 @@ function renderDashboardBanner(){
       <div class="card" style="margin-bottom:16px; display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
         <div style="width:40px; height:40px; border-radius:10px; background:var(--surface-3); display:flex; align-items:center; justify-content:center; color:var(--text-dim); flex-shrink:0;"><i class="fa-solid fa-pen"></i></div>
         <div style="flex:1; min-width:0;">
-          <div style="font-weight:700; font-size:13.5px;">Manual tracking mode</div>
-          <div style="font-size:11.5px; color:var(--text-dim);">These stats come from what you type into the Planner. Connect YouTube for real, automatic numbers.</div>
+          <div style="font-weight:700; font-size:13.5px;">Manual mode</div>
+          <div style="font-size:11.5px; color:var(--text-dim);">Connect YouTube for automatic stats.</div>
         </div>
         <button class="btn btn-sm btn-primary" id="dashboardConnectYtBtn"><i class="fa-brands fa-youtube"></i> Connect YouTube</button>
       </div>`;
@@ -4930,12 +4936,12 @@ function renderDashboardConnectedMode(){
   const videos = filteredYoutubeVideos();
 
   document.getElementById("dashProgressTitle").innerHTML = 'Recent uploads <span class="tag" id="monthTag"></span>';
-  document.getElementById("dashProgressHint").textContent = "How many of your channel's videos are represented in the batch shown below.";
-  document.getElementById("dashBestWorstHint").textContent = "Your highest- and lowest-viewed upload in the batch above, ranked by total views.";
+  document.getElementById("dashProgressHint").textContent = "Videos included in the stats below.";
+  document.getElementById("dashBestWorstHint").textContent = "Your top and bottom uploads by views.";
   document.getElementById("dashDailyViewsTitle").textContent = "Cumulative views";
-  document.getElementById("dashDailyViewsHint").textContent = "Running total of views as each recent upload adds to the total, ordered by publish date.";
+  document.getElementById("dashDailyViewsHint").textContent = "Total views building up over time.";
   document.getElementById("dashStatusTitle").textContent = "Views, likes, comments & watch hours";
-  document.getElementById("dashStatusHint").textContent = "Combined totals across the uploads shown above. Click a legend item to isolate it, or click All to reset.";
+  document.getElementById("dashStatusHint").textContent = "Click a legend item to isolate it.";
 
   const cards = [
     {label:"Subscribers", value:(yt.subs||0).toLocaleString(), sub:"channel total", icon:"fa-solid fa-users", cls:"stat-accent", source:"youtube"},
@@ -5317,11 +5323,23 @@ function renderPlanner(){
   const plannerHintEl = document.querySelector("#view-planner .section-hint");
   if(plannerHintEl){
     plannerHintEl.textContent = isAnyPlatformConnected()
-      ? `Your ${isTiktokConnected() ? "TikTok account" : "YouTube channel"} is connected, so this calendar is now a personal planning notepad — it no longer drives your Dashboard, Statistics, or Compare numbers, which come straight from ${isTiktokConnected() ? "TikTok" : "YouTube"}. Click any day to jot down a title, notes, or a checklist for yourself.`
-      : "Click any day to add a Short's title, status, checklist, and performance numbers. Colors below show each day's state.";
+      ? `This calendar is now just a personal notepad — your real stats come from ${isTiktokConnected() ? "TikTok" : "YouTube"}.`
+      : "Click any day to add a Short and enter your own stats manually.";
   }
   const mk = monthKeyOf(viewCursor);
   document.getElementById("monthLabel").textContent = `${MONTH_NAMES[viewCursor.getMonth()]} ${viewCursor.getFullYear()}`;
+
+  const plannerTitleEl = document.getElementById("pageTitle");
+  const plannerSubEl = document.getElementById("pageSub");
+  if(plannerTitleEl && document.querySelector(".nav-item.active")?.dataset.view === "planner"){
+    if(isAnyPlatformConnected()){
+      plannerTitleEl.textContent = "Planner (Notepad)";
+      plannerSubEl.textContent = `Personal notes only — stats come from ${isTiktokConnected() ? "TikTok" : "YouTube"}`;
+    } else {
+      plannerTitleEl.textContent = VIEW_META.planner.title;
+      plannerSubEl.textContent = VIEW_META.planner.sub;
+    }
+  }
 
   const dowRow = document.getElementById("calDow");
   dowRow.innerHTML = DOW.map(d=>`<div class="cal-dow">${d}</div>`).join("");
@@ -5680,8 +5698,8 @@ function renderIdeas(){
   const ideasHintEl = document.querySelector("#view-ideas .section-hint");
   if(ideasHintEl){
     ideasHintEl.textContent = isAnyPlatformConnected()
-      ? `Capture Short ideas before they're ready for a specific date. Tag them and group them into content pillars. Your ${isTiktokConnected() ? "TikTok account" : "YouTube channel"} is connected, so the Planner calendar no longer drives your real stats — "Send to Planner" just logs the idea as a note on that date, it won't create a real upload.`
-      : "Capture Short ideas before they're ready for a specific date. Tag them, group them into content pillars, and send them straight to the Planner when you're ready to schedule.";
+      ? `Capture ideas here. "Send to Planner" just logs a note — it won't create a real upload.`
+      : "Capture and tag Short ideas before they're ready to schedule.";
   }
   const search = document.getElementById("ideaSearchInput").value.trim().toLowerCase();
   const pillarFilter = document.getElementById("ideaPillarFilter").value;
@@ -5717,7 +5735,17 @@ function renderIdeas(){
   grid.querySelectorAll(".idea-edit-btn").forEach(b=> b.addEventListener("click", (e)=> openIdeaModal(e.target.closest(".idea-card").dataset.id)));
   grid.querySelectorAll(".idea-send-btn").forEach(b=> b.addEventListener("click", (e)=> openSendIdeaModal(e.target.closest(".idea-card").dataset.id)));
 }
-document.getElementById("ideaSearchInput").addEventListener("input", renderIdeas);
+document.getElementById("ideaSearchInput").addEventListener("input", (e)=>{
+  document.getElementById("ideaSearchClearBtn").style.display = e.target.value ? "flex" : "none";
+  renderIdeas();
+});
+document.getElementById("ideaSearchClearBtn").addEventListener("click", ()=>{
+  const input = document.getElementById("ideaSearchInput");
+  input.value = "";
+  document.getElementById("ideaSearchClearBtn").style.display = "none";
+  input.focus();
+  renderIdeas();
+});
 document.getElementById("ideaPillarFilter").addEventListener("change", renderIdeas);
 document.getElementById("ideaStatusFilter").addEventListener("change", renderIdeas);
 
@@ -6193,8 +6221,8 @@ function renderBadges(){
   const achievementsHint = document.querySelector('#view-goals .goal-card:last-of-type .section-hint');
   if(achievementsHint){
     achievementsHint.textContent = isAnyPlatformConnected()
-      ? `Unlocked automatically from your connected ${isTiktokConnected() ? "TikTok account's" : "YouTube channel's"} real stats — nothing to configure.${hiddenCount ? ` ${hiddenCount} achievement${hiddenCount===1?'':'s'} that need${hiddenCount===1?'s':''} manual-tracking data (shares, watch time, CTR, categories) ${hiddenCount===1?'is':'are'} hidden while connected.` : ""}`
-      : "Unlocked automatically as you plan, upload, and grow in the Planner calendar — nothing to configure.";
+      ? `Unlocked from your ${isTiktokConnected() ? "TikTok" : "YouTube"} stats — nothing to configure.${hiddenCount ? ` ${hiddenCount} hidden while connected.` : ""}`
+      : "Unlocked as you grow nothing to configure.";
   }
   document.getElementById("badgeGrid").innerHTML = achievements.map(a=>`
     <div class="badge-card ${a.unlocked?'unlocked':''}" title="${escapeHtml(a.desc)}">
@@ -6788,7 +6816,7 @@ function updateCompetitorCardCopy(){
     pickerRow.style.opacity = ".55";
   } else {
     titleEl.textContent = "Competitor benchmark";
-    hintEl.textContent = "Look up any public YouTube channel by handle, ID, or URL to compare its subscribers, views, and video count against yours.";
+    hintEl.textContent = "Look up any public YouTube channel to compare stats.";
     labelEl.textContent = "Channel handle, ID, or URL";
     inputEl.disabled = false;
     inputEl.placeholder = "e.g. @mkbhd or UCxxxxxxxx";
@@ -6927,7 +6955,7 @@ function renderTtCompetitorBenchmark(){
       <div class="compare-metric"><span>Total likes</span>${diffPill(yours.likes, comp.likes)}</div>
       <div class="compare-metric"><span>Videos</span>${diffPill(yours.videos, comp.videos)}</div>
     </div>
-    <div class="section-hint" style="margin-top:10px;">Entered manually — last updated ${new Date(comp.updatedAt).toLocaleString()}. Update the fields above and press Save to refresh.</div>
+    <div class="section-hint" style="margin-top:10px;">Updated ${new Date(comp.updatedAt).toLocaleString()}</div>
   `;
 }
 document.getElementById("saveTtCompetitorBtn").addEventListener("click", saveTtCompetitor);
@@ -7008,12 +7036,12 @@ function renderStats(){
   const catTitleReset = catCardReset.querySelector(".section-title");
   const catHintReset = catCardReset.querySelector(".section-hint");
   if(catTitleReset) catTitleReset.childNodes[0].textContent = "Best category ";
-  if(catHintReset) catHintReset.textContent = "Which content category earned the most total views this month.";
+  if(catHintReset) catHintReset.textContent = "Your top category by views.";
   const perfCardReset = document.getElementById("performanceChart").closest(".card");
   const perfTitleReset = perfCardReset.querySelector(".section-title");
   const perfHintReset = perfCardReset.querySelector(".section-hint");
   if(perfTitleReset) perfTitleReset.textContent = "Upload performance over time";
-  if(perfHintReset) perfHintReset.textContent = "7-day view counts across every month you've tracked, so you can see the longer trend.";
+  if(perfHintReset) perfHintReset.textContent = "Your view trend over time.";
   const mk = monthKeyOf(statsCursor);
   const days = daysInMonth(mk);
   const uploaded = days.filter(d=>d.entry.status==="Uploaded");
